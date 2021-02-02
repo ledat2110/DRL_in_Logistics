@@ -2,8 +2,9 @@ import json
 
 config = {}
 warhouse_num = 4
+storage_capacity = [100, 200, 200, 100]
+init_inventory = [10, 3, 40, 1]
 storage_cost = [100, 10, 100, 2]
-storage_capacity = [100, 10, 200, 3]
 penalty_cost = [0, 10, 30, 2]
 truck_cost = [0, 10, 32, 18]
 truck_capacity = [1, 10, 32, 23]
@@ -18,6 +19,7 @@ config['warehouses'] = []
 for i in range(4):
     warehouse = {
             'id':i,
+            'init_inventory': init_inventory[i],
             'capacity': storage_capacity[i],
             'storage_cost': storage_cost[i],
             'penalty_cost':penalty_cost[i],
