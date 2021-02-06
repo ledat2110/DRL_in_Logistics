@@ -5,9 +5,6 @@ from gym.utils import seeding
 import numpy as np
 import math
 
-from src.gym_sp.factory import *
-from src.gym_sp.warehouse import *
-
 from typing import Tuple, List, Dict
 
 class SupplyChain(gym.Env):
