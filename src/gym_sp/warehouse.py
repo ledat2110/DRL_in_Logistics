@@ -8,12 +8,13 @@ class Warehouse:
         self.init_inventory = config['init_inventory']
         self.inventory = config['init_inventory']
         self.capacity = config['capacity']
-        self.storage_cost = config['storage_cost']
-        self.penalty_cost = config['penalty_cost']
+        self.storage_fee = config['storage_cost']
+        self.penalty_fee = config['penalty_cost']
         self.truck_cost = config['truck_cost']
         self.truck_capacity = config['truck_capacity']
+        self.price = config['price']
 
-    def recieve(self, products):
+    def transportation_cost(self, products: int) -> float:
         recieved = products
 
         if (self.inventory + products > self.capacity):
@@ -22,16 +23,21 @@ class Warehouse:
         else:
             self.inventory += products
 
-        fee = self.truck_cost * (recieved * 1.0 / self.truck_capacity)
-        return fee
+        cost = self.truck_cost * (recieved * 1.0 / self.truck_capacity)
+        return cost
 
-    def demand(self, products):
+    def revenue(self, products: int) -> float:
+        sold_products = products
+        if (products > self.inventory):
+            sold_products = self.inventory
+
         self.inventory -= products
+        return self.price * self.products
 
-    def storage_fee(self):
-        return self.storage_cost * max(self.inventory, 0)
+    def storage_cost(self) -> float:
+        return self.storage_fee * max(self.inventory, 0)
 
-    def penalty_fee(self):
+    def penalty_cost(self) -> float:
         return self.penalty_fee * min(self.inventory, 0)
 
     def reset(self):
