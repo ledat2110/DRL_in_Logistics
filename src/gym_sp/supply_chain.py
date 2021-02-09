@@ -2,6 +2,7 @@ import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
 
+from scipy.stats import *
 import numpy as np
 import math
 
@@ -19,7 +20,10 @@ class SupplyChain(gym.Env):
         self.penalty_cost = np.array(config['penalty_cost'], dtype=np.int32)
         self.truck_cost = np.array(config['truck_cost'], dtype=np.int32)
         self.truck_capacity = np.array(config['truck_capacity'], dtype=np.int32)
+        self.seed_int = config['seed']
+        self.dist_type = config['distribution']
 
+        self.seed(self.seed_int)
         self.action_dim = self.storage_capacity.shape[0]
         self.action_max = [self.production_capacity] + config['storage_capacity'][1:]
         self.action_space = gym.spaces.Box(
@@ -35,12 +39,24 @@ class SupplyChain(gym.Env):
                 high = np.ones(self.state_dim) * self.num_period * self.storage_capacity.max(),
                 dtype = np.int32
                 )
+
+        self.distribution = {
+                'poisson': [poisson, {'mu': self.storage_capacity}],
+                'binom': [binom, {'n': self.storage_capacity, 'p': np.random.rand(self.demand_dim)}],
+                'randint': [randint, {'low': np.zeros_like(self.storage_capacity), 'high': self.storage_capacity}]
+                }
+
         self._init()
+
+    def seed(self, seed_int = None):
+        if seed_int != None:
+            np.random.seed(seed_int)
 
     def step(self, action: np.ndarray):
         feasible_action = self.feasible_action()
         assert action.shape[0] == self.action_space.shape[0]
         assert (action <= feasible_action).all() == True
+        assert self.inventory[0] >= sum(action[1:])
 
         unit_cost = self._unit_cost(action[0])
         truck_cost = self._transportation_cost(action[1:])
@@ -79,7 +95,11 @@ class SupplyChain(gym.Env):
         self.state = np.concatenate((self.inventory, self.historical_demand[-1][1:], self.historical_demand[-2][1:]))
 
     def _demand(self, period: int) -> np.ndarray:
-        demand = np.ones(self.demand_dim)
+        dist = self.distribution[self.dist_type]
+        param = dist[1]
+        dist = dist[0]
+
+        demand = dist.rvs(**param)
         return demand
 
     def _unit_cost(self, products: int) -> int:

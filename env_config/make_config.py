@@ -2,16 +2,18 @@ import json
 
 config = {}
 
+config['seed'] = 3
 config['num_period'] = 1000
 config['unit_cost'] = 100
 config['production_capacity'] = 200
-config['init_inventory'] = [10, 3, 40, 1]
-config['storage_capacity'] = [100, 200, 200, 100]
+config['init_inventory'] = [400, 3, 40, 1]
+config['storage_capacity'] = [400, 200, 200, 100]
 config['product_price'] = [0, 100, 30, 20]
-config['storage_cost'] = [100, 10, 100, 2]
-config['penalty_cost'] = [0, 10, 30, 2]
+config['storage_cost'] = [100, 200, 100, 300]
+config['penalty_cost'] = [50, 200, 300, 200]
 config['truck_cost'] = [0, 10, 32, 18]
 config['truck_capacity'] = [1, 10, 32, 23]
+config['distribution'] = 'binom'
 #config['factory'] = {
 #        'warehouse': 1,
 #        'unit_cost': 100,
