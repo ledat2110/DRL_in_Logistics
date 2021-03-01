@@ -22,6 +22,8 @@ class SupplyChain(gym.Env):
         self.truck_capacity = np.array(config['truck_capacity'], dtype=np.int32)
         self.seed_int = config['seed']
         self.dist_type = config['distribution']
+        self.demand_max = config['demand_max']
+        self.num_stores = config['num_stores']
 
         self.seed(self.seed_int)
         self.action_dim = self.storage_capacity.shape[0]
@@ -53,22 +55,25 @@ class SupplyChain(gym.Env):
             np.random.seed(seed_int)
 
     def step(self, action: np.ndarray):
-        feasible_action = self.feasible_action()
+        # feasible_action = self.feasible_action()
         assert action.shape[0] == self.action_space.shape[0]
-        assert (action <= feasible_action).all() == True
-        assert self.inventory[0] >= sum(action[1:])
+        assert self.check_feasible_action(action) == True
+        # assert (action <= feasible_action).all() == True
+        # assert self.inventory[0] >= sum(action[1:])
 
         unit_cost = self._unit_cost(action[0])
         truck_cost = self._transportation_cost(action[1:])
 
         self.inventory += action
         self.inventory[0] -= action[1:].sum()
+        self.inventory[0] = min(self.inventory[0], self.storage_capacity[0])
 
-        demand = self._demand(self.period)
+        demand = self._demand()
         self.historical_demand.append(demand)
         revenue = self._revenue(demand)
         for i in range(1, len(self.inventory)):
             self.inventory[i] -= demand[i]
+            self.inventory[i] = min(self.inventory[i], self.storage_capacity[i])
 
         storage_cost = self._storage_cost()
         penalty_cost = self._penalty_cost()
@@ -94,12 +99,20 @@ class SupplyChain(gym.Env):
     def _update_state(self) -> np.ndarray:
         self.state = np.concatenate((self.inventory, self.historical_demand[-1][1:], self.historical_demand[-2][1:]))
 
-    def _demand(self, period: int) -> np.ndarray:
-        dist = self.distribution[self.dist_type]
-        param = dist[1]
-        dist = dist[0]
+    def _demand(self) -> np.ndarray:
+        demand = [0]
+        for i in range(self.num_stores):
+            eps = np.random.choice([0, 1], p=(0.5, 0.5))
+            rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
+            val = .5 * self.demand_max * np.sin(rad) + .5 * self.demand_max + eps
+            demand.append(int(np.floor(val)))
 
-        demand = dist.rvs(**param)
+        # dist = self.distribution[self.dist_type]
+        # param = dist[1]
+        # dist = dist[0]
+
+        # demand = dist.rvs(**param)
+        demand = np.asarray(demand)
         return demand
 
     def _unit_cost(self, products: int) -> int:
@@ -139,6 +152,11 @@ class SupplyChain(gym.Env):
             action.append(self.storage_capacity[i] - self.inventory[i])
 
         return np.asarray(action, dtype=np.int32)
+
+    def check_feasible_action(self, action: np.ndarray) -> bool:
+        result = (action[0] <= self.production_capacity) & (np.sum(action[1:]) <= self.inventory[0]).all()
+
+        return result
 
     def reset(self) -> np.ndarray:
         self._init()

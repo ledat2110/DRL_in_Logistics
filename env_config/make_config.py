@@ -2,17 +2,19 @@ import json
 
 config = {}
 
-config['seed'] = 3
-config['num_period'] = 1000
-config['unit_cost'] = 100
-config['production_capacity'] = 200
-config['init_inventory'] = [400, 3, 40, 1]
-config['storage_capacity'] = [400, 200, 200, 100]
-config['product_price'] = [0, 100, 30, 20]
-config['storage_cost'] = [100, 200, 100, 300]
-config['penalty_cost'] = [50, 200, 300, 200]
-config['truck_cost'] = [0, 10, 32, 18]
-config['truck_capacity'] = [1, 10, 32, 23]
+config['seed'] = 2
+config['num_period'] = 48
+config['num_stores'] = 3
+config['unit_cost'] = 1
+config['production_capacity'] = 8
+config['demand_max'] = 8
+config['init_inventory'] = [10, 0, 0, 0]
+config['storage_capacity'] = [20, 5, 5, 5]
+config['product_price'] = [0, 30, 30, 30]
+config['storage_cost'] = [0.01, 0.1, 0.1, 0.1]
+config['penalty_cost'] = [5, 2, 2, 2]
+config['truck_cost'] = [0, 1, 2, 3]
+config['truck_capacity'] = [1, 2, 2, 2]
 config['distribution'] = 'binom'
 #config['factory'] = {
 #        'warehouse': 1,
