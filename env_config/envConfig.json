@@ -1,1 +1,0 @@
-{"seed": 2, "num_period": 48, "num_stores": 3, "unit_cost": 1, "production_capacity": 8, "demand_max": 8, "init_inventory": [10, 0, 0, 0], "storage_capacity": [20, 5, 5, 5], "product_price": [0, 30, 30, 30], "storage_cost": [0.01, 0.1, 0.1, 0.1], "penalty_cost": [5, 2, 2, 2], "truck_cost": [0, 1, 2, 3], "truck_capacity": [1, 2, 2, 2], "distribution": "binom"}

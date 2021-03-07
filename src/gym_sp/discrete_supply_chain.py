@@ -8,7 +8,7 @@ import math
 
 from typing import Tuple, List, Dict
 
-class SupplyChain (gym.Env):
+class DiscreteSupplyChain (gym.Env):
     def __init__ (self, n_stores: int=3, cap_truck: int=2, production_cost: int=1, max_production: int=3,
                     store_cost: np.array=np.array([0, 2, 0, 0]),
                     truck_cost: np.array=np.array([3, 3, 0]),
@@ -26,13 +26,23 @@ class SupplyChain (gym.Env):
         self.demand_max = max_demand
         self.num_stores = n_stores
         self.periodic_demand = periodic_demand
+        self.actions_per_store = 3
 
         self.action_dim = self.storage_capacity.shape[0]
-        self.action_space = gym.spaces.Box(
-                low = np.zeros(self.action_dim),
-                high = self.storage_capacity,
-                dtype = np.float32
-                )
+        available_actions = np.zeros((self.action_dim, self.actions_per_store))
+        available_actions[0] = [0, int(self.production_capacity / 2), self.production_capacity]
+        available_actions[1:, :] = [0, self.truck_capacity, self.truck_capacity * 2]
+        self.available_actions = available_actions
+
+        continuous_action_shape = (self.actions_per_store ** (self.num_stores + 1), self.num_stores + 1)
+        self.discrete_continuous = np.zeros(continuous_action_shape)
+        for i in range(self.num_stores + 1):
+            step = self.actions_per_store ** (self.num_stores - i)
+            for j in range(0, continuous_action_shape[0], step):
+                idx = int(j / step) % self.actions_per_store
+                self.discrete_continuous[j:j+step, i] = available_actions[i, idx]
+                        
+        self.action_space = spaces.Discrete(len(self.discrete_continuous))
 
         self.demand_dim = self.num_stores
         self.state_dim = self.storage_capacity.shape[0] + self.demand_dim * 2
@@ -52,9 +62,9 @@ class SupplyChain (gym.Env):
         self.inventory = self.storage_capacity.copy() / 2
         self._update_state()
 
-    def step (self, action: np.ndarray):
+    def step (self, action: int):
         # cliping action into feasible action
-        action = self._clipping_action(action)
+        action = self.discrete_continuous[action].copy()
 
         # update inventory
         self._update_inventory(action)
