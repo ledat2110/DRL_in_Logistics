@@ -6,7 +6,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 from typing import List
 
-from . import actions
+from . import action
 from . import experience
 
 class Tracker:
@@ -32,8 +32,8 @@ class Tracker:
         self.val = max(self.val, self.end_val)
 
 class EpsilonTracker (Tracker):
-    def __init__ (self, selector: actions.EpsilonGreedySelector, start_val: float, end_val: float, steps: int, lin: bool=True):
-        assert isinstance(selector, actions.EpsilonGreedySelector)
+    def __init__ (self, selector: action.EpsilonGreedySelector, start_val: float, end_val: float, steps: int, lin: bool=True):
+        assert isinstance(selector, action.EpsilonGreedySelector)
         super(EpsilonTracker, self).__init__(start_val, end_val, steps, lin)
         self.selector = selector
         self.selector.epsilon = self.val

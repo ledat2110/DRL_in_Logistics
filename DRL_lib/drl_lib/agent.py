@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from . import actions
-from .common.preprocessor import Preprocessor
+from . import action
+from .utils import Preprocessor
 
 from typing import List
 
@@ -22,9 +22,9 @@ class BaseAgent:
 
     def __call__ (self, state):
         """
-        Convert observations and states into actions to take
+        Convert observations and states into action to take
         :param states: list of environment states to process
-        :return: tuple of actions, states
+        :return: tuple of action, states
         """
 
         raise NotImplementedError
@@ -34,9 +34,9 @@ class BaseAgent:
 class DQNAgent (BaseAgent):
     """
     DQNAgent is a memoryless DQN agent which calculates Q values
-    from the observations and  converts them into the actions using action_selector
+    from the observations and  converts them into the action using action_selector
     """
-    def __init__ (self, model: nn.Module, action_selector: actions.ActionSelector, device="cpu", preprocessor=Preprocessor.default_tensor):
+    def __init__ (self, model: nn.Module, action_selector: action.ActionSelector, device="cpu", preprocessor=Preprocessor.default_tensor):
         self.model = model
         self.action_selector = action_selector
         self.preprocessor = preprocessor
@@ -51,9 +51,9 @@ class DQNAgent (BaseAgent):
         
         q_v = self.model(state)
         q = q_v.squeeze(0).data.cpu().numpy()
-        actions = self.action_selector(q)
+        action = self.action_selector(q)
 
-        return actions
+        return action
 
 class TargetNet:
     """
@@ -78,9 +78,9 @@ class TargetNet:
 
 class PolicyAgent (BaseAgent):
     """
-    Policy agent gets action probabilities from the model and samples actions from it
+    Policy agent gets action probabilities from the model and samples action from it
     """
-    def __init__ (self, model, action_selector=actions.ProbabilityActionSelector(), device="cpu", apply_softmax=False, preprocessor=Preprocessor.default_tensor):
+    def __init__ (self, model, action_selector=action.ProbabilityActionSelector(), device="cpu", apply_softmax=False, preprocessor=Preprocessor.default_tensor):
         self.model = model
         self.action_selector = action_selector
         self.device = device

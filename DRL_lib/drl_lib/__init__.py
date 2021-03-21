@@ -3,7 +3,7 @@ from . import experience
 from . import agent
 from . import tracker
 from . import net
-from . import envs
+from . import env
 from . import utils
 from . import wrapper
 
