@@ -55,7 +55,6 @@ class SupplyChain (gym.Env):
     def step (self, action: np.ndarray):
         # cliping action into feasible action
         action = self._clipping_action(action)
-
         # update inventory
         self._update_inventory(action)
 
@@ -102,7 +101,7 @@ class SupplyChain (gym.Env):
     def _update_reward (self, action: np.ndarray) -> float:
         zeros_array = np.zeros_like(self.inventory)
 
-        revenue = np.sum(self.demand * self.product_price)
+        revenue = np.sum(np.minimum(self.demand, self.inventory[1:]) * self.product_price)
         production_cost = self.unit_cost * action[0]
         storage_cost = np.sum(np.maximum(zeros_array, self.inventory) * self.storage_cost)
         penalty_cost = np.sum(np.minimum(zeros_array, self.inventory) * self.penalty_cost)

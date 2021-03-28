@@ -2,7 +2,12 @@ import math
 import time
 import sys
 import numpy as np
+import collections
+import datetime
 
+import torch
+
+from functools import partial
 from tensorboardX import SummaryWriter
 from typing import List
 
@@ -65,7 +70,7 @@ class RewardTracker:
         self.total_reward = []
         return self
 
-    def __exit__ (self):
+    def __exit__ (self, exec_type, exec_val, exec_tb):
         self.writer.close()
 
     def update (self, reward, frame, epsilon=None):
@@ -79,7 +84,7 @@ class RewardTracker:
         self.ts_frame = frame
         self.eps_ts = now
 
-        print("Episode: %d, Reward: %6.3f, Speed: %6.3f, Epsilon: %s, Elapsed: %.3f" % (len(self.total_reward), m_reward, speed, epsilon, elapsed))
+        print("Episode: %d, Reward: %6.3f, Speed: %6.3f, Epsilon: %s, Elapsed: %s" % (len(self.total_reward), m_reward, speed, epsilon, str(datetime.timedelta(seconds=elapsed))))
         sys.stdout.flush()
 
         if epsilon is not None:
@@ -92,3 +97,48 @@ class RewardTracker:
             return True
 
         return False
+
+class TBMeanTracker:
+    def __init__ (self, writer, mean_step: int):
+        assert isinstance (mean_step, int)
+        assert isinstance (writer, SummaryWriter)
+        self.writer = writer
+        self.m_step = mean_step
+        self._params = collections.defaultdict(partial(collections.deque, maxlen=self.m_step))
+
+    def __enter__ (self):
+        return self
+
+    def __exit__ (self, exec_type, exec_val, exec_tb):
+        self.writer.close()
+
+    @staticmethod
+    def _as_float(value):
+        assert isinstance(value, (float, int, np.ndarray, np.generic, torch.autograd.Variable)) or torch.is_tensor(value)
+        tensor_val = None
+        if isinstance(value, torch.autograd.Variable):
+            tensor_val = value.data
+        elif torch.is_tensor(value):
+            tensor_val = value
+
+        if tensor_val is not None:
+            return tensor_val.float().mean().item()
+        elif isinstance(value, np.ndarray):
+            return float(np.mean(value))
+        else:
+            return float(value)
+
+    def track (self, param_name: str, value, iter_idx: int, mean: bool=True):
+        assert isinstance(param_name, str)
+        assert isinstance(iter_idx, int)
+
+        data = self._params[param_name]
+        data.append(self._as_float(value))
+
+        if mean:
+            self.writer.add_scalar(param_name, np.mean(data), iter_idx)
+        else:
+            self.writer.add_scalar(param_name, data[-1], iter_idx)
+
+    def close (self):
+        self.writer.close()

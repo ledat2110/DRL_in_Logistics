@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
             batch_states.append(exp.state)
             batch_actions.append(exp.action)
-            batch_scales.append(exp.reward - baseline)
+            batch_scales.append(exp.reward)
 
             reward, step = exp_source.reward_step()
             if reward is not None:
@@ -134,7 +134,10 @@ if __name__ == "__main__":
             scales_v = torch.FloatTensor(batch_scales).to(device)
 
             optimizer.zero_grad()
-            mu_v, var_v, _ = net(states_v)
+            mu_v, var_v, val_v = net(states_v)
+
+            val_loss_v = F.mse_loss(val_v, scales_v)
+            scales_v = scales_v - val_v.detach()
 
             log_prob_v = calc_logprob(mu_v, var_v, actions_v)
             log_prob_v = scales_v.unsqueeze(-1) * log_prob_v
@@ -143,7 +146,7 @@ if __name__ == "__main__":
             entropy_v = (-(torch.log(2 * math.pi * var_v) + 1) / 2).mean()
             entropy_loss_v = ENTROPY_WEIGHT * entropy_v
 
-            loss_v = loss_policy_v + entropy_loss_v
+            loss_v = loss_policy_v + entropy_loss_v + val_loss_v
             loss_v.backward()
             optimizer.step()
 
@@ -153,7 +156,7 @@ if __name__ == "__main__":
             tb_tracker.track("entropy_loss", entropy_loss_v.item(), step_idx)
             tb_tracker.track("policy_loss", loss_policy_v.item(), step_idx)
             tb_tracker.track("total_loss", loss_v.item(), step_idx)
-
+            tb_tracker.track("val_loss", val_loss_v.item(), step_idx)
             batch_states.clear()
             batch_actions.clear()
             batch_scales.clear()
