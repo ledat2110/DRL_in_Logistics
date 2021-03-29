@@ -127,6 +127,7 @@ class ExperienceSource:
 
         self.env = env
         self.buffer = buffer
+        self.history = collections.deque(maxlen=self.steps_count)
 
         self.total_reward = None
         self.total_step = None
@@ -136,49 +137,45 @@ class ExperienceSource:
         self.state = self.env.reset()
         self.cur_step = 0
         self.cur_reward = 0
+        self.history.clear()
 
-    def play_steps (self):
-        state = self.state
-        actions = []
-        rewards = []
-        for _ in range(self.steps_count):
+    def _create_exp (self):
+        state, action, done, last_state = self.history[0].state, self.history[0].action, self.history[-1].done, self.history[-1].last_state
+        reward = 0
+        for exp in reversed(self.history):
+            reward *= self.gamma
+            reward += exp.reward
+
+        exp = Experience(state, action, reward, done, last_state)
+        if self.buffer is not None:
+            self.buffer.append(exp)
+
+        return exp
+
+    def __iter__ (self):
+        while True:
+            state = self.state
             action = self.agent(state)
             next_state, reward, done, _ = self.env.step(action)
 
             self.cur_reward += reward
             self.cur_step += 1
 
-            rewards.append(reward)
-            actions.append(action)
-
-            if done:        
-                next_state = state
-                break
-
-            state = next_state
-
-        reward = 0
-        for r in reversed(rewards):
-            reward *= self.gamma
-            reward += r
-
-        exp = Experience(self.state, actions[0], reward, done, next_state)
-        if self.buffer is not None:
-            self.buffer.append(exp)
-
-        if done:
-            self.total_reward = self.cur_reward
-            self.total_step = self.cur_step
-            self.reset()
-        else:
-            self.state = next_state
-
-        return exp
-
-    def __iter__ (self):
-        while True:
-            exp = self.play_steps()
-            yield exp
+            exp = Experience(state, action, reward, done, next_state)
+            self.history.append(exp)
+            if len(self.history) == self.steps_count:
+                exp = self._create_exp()
+                yield exp
+            if done:
+                while len(self.history) > 1:
+                    self.history.popleft()
+                    exp = self._create_exp()
+                    yield exp
+                self.total_reward = self.cur_reward
+                self.total_step = self.cur_step
+                self.reset()
+            else:
+                self.state = next_state
 
     def reward_step (self):
         res = (self.total_reward, self.total_step)
@@ -195,9 +192,11 @@ class MultiExpSource:
         assert steps_count >= 1
 
         self.exp_sources = []
+        self.iters = []
         for env in envs:
             exp_source = ExperienceSource(env, agent, buffer, steps_count, gamma)
             self.exp_sources.append(exp_source)
+            self.iters.append(iter(exp_source))
 
         self.total_rewards = []
         self.total_steps = []
@@ -208,25 +207,18 @@ class MultiExpSource:
         for exp_source in self.exp_sources:
             exp_source.reset()
 
-    def play_steps (self):
-        for exp_source in self.exp_sources:
-            exp = exp_source.play_steps()
-            yield exp
-
     def __iter__ (self):
+        idx = 0
         while True:
-            for exp_source in self.exp_sources:
-                exp = exp_source.play_steps()
-                yield exp
+            exp = next(self.iters[idx])
+            if exp.done == False:
+                idx = (idx + 1) % len(self.iters)
+            yield exp
 
     def reward_step (self):
         for exp_source in self.exp_sources:
             reward, step = exp_source.reward_step()
-            self.total_rewards.append(reward)
-            self.total_steps.append(step)
-
-        res = (self.total_rewards.copy(), self.total_steps.copy)
-        self.total_rewards.clear()
-        self.total_steps.clear()
-
-        return res
+            if reward is not None:
+                res = (reward, step)
+                return res
+        return (None, None)
