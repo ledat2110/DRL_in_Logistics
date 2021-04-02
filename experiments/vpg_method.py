@@ -36,6 +36,11 @@ class LogisticsPGN (nn.Module):
                 nn.Linear(64, action_dim),
                 )
 
+        self.var = nn.Sequential(
+                nn.Linear(64, action_dim),
+                nn.Softplus()
+                )
+
         self.val = nn.Sequential(
                 nn.Linear(64, 1)
                 )
@@ -56,6 +61,7 @@ class LogisticsPGN (nn.Module):
         out_base = self.base(fx)
         out_mean = self.mu(out_base)
         out_val = self.val(out_base)
+        out_var = self.var(out_base)
 
         return out_mean, F.softplus(self.log_std), out_val
 
@@ -79,7 +85,7 @@ class Agent (drl_lib.agent.BaseAgent):
 
         action = np.random.normal(mu, sigma)
         return action
-
+ 
 def calc_logprob (mu_v: torch.Tensor, var_v: torch.Tensor, action_v: torch.Tensor) -> torch.Tensor:
     p1 = - ((mu_v - action_v) ** 2) / (2 * var_v.clamp(min=1e-3))
     p2 = -torch.log(torch.sqrt(2 * math.pi * var_v.clamp(min=1e-3)))
@@ -117,7 +123,7 @@ if __name__ == "__main__":
 
             batch_states.append(exp.state)
             batch_actions.append(exp.action)
-            batch_scales.append(exp.reward)
+            batch_scales.append(exp.reward - baseline)
 
             reward, step = exp_source.reward_step()
             if reward is not None:
@@ -136,9 +142,6 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             mu_v, var_v, val_v = net(states_v)
 
-            val_loss_v = F.mse_loss(val_v, scales_v)
-            scales_v = scales_v - val_v.detach()
-
             log_prob_v = calc_logprob(mu_v, var_v, actions_v)
             log_prob_v = scales_v.unsqueeze(-1) * log_prob_v
             loss_policy_v = -log_prob_v.mean()
@@ -146,7 +149,7 @@ if __name__ == "__main__":
             entropy_v = (-(torch.log(2 * math.pi * var_v) + 1) / 2).mean()
             entropy_loss_v = ENTROPY_WEIGHT * entropy_v
 
-            loss_v = loss_policy_v + entropy_loss_v + val_loss_v
+            loss_v = loss_policy_v + entropy_loss_v
             loss_v.backward()
             optimizer.step()
 
@@ -156,7 +159,6 @@ if __name__ == "__main__":
             tb_tracker.track("entropy_loss", entropy_loss_v.item(), step_idx)
             tb_tracker.track("policy_loss", loss_policy_v.item(), step_idx)
             tb_tracker.track("total_loss", loss_v.item(), step_idx)
-            tb_tracker.track("val_loss", val_loss_v.item(), step_idx)
             batch_states.clear()
             batch_actions.clear()
             batch_scales.clear()
