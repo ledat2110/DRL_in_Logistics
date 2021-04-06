@@ -13,6 +13,52 @@ from .agent import BaseAgent
 Experience = namedtuple("Experience", ['state', 'action', 'reward', 'done', 'last_state'])
 EpisodeEnded = namedtuple("EpisodeEnded", field_names=['reward', 'step'])
 
+class BatchData:
+    def __init__ (self, max_size: int):
+        self.batch = collections.deque(maxlen=max_size)
+        self.max_size = max_size
+
+    def add (self, value: Experience):
+        assert isinstance(value, Experience)
+        self.batch.append(value)
+
+    def unpack (self):
+        states, actions, rewards, dones, next_states = [], [], [], [], []
+        for exp in self.batch:
+            states.append(np.array(exp.state))
+            actions.append(exp.action)
+            rewards.append(exp.reward)
+            dones.append(exp.done)
+            next_states.append(np.array(exp.last_state))
+
+        states = np.array(states, copy=False)
+        actions = np.array(actions)
+        rewards = np.array(rewards, dtype=np.float32)
+        dones = np.array(dones, dtype=np.uint8)
+        next_states = np.array(next_states, copy=False)
+        
+        return states, actions, rewards, dones, next_states
+
+    def pg_unpack (self, net, discount, device='cpu'):
+        states, actions, rewards, dones, next_states = self.unpack()
+
+        states_v = torch.FloatTensor(states).to(device)
+        actions_t = torch.LongTensor(actions).to(device)
+
+        last_states_v = torch.FloatTensor(next_states).to(device)
+        last_vals_v = net(last_states_v)
+        last_vals_np = last_vals_v.data.cpu().numpy()[:, 0] * discount
+        rewards[dones==False] += last_vals_np[dones==False]
+
+        ref_vals_v = torch.FloatTensor(rewards).to(device)
+        return states_v, actions_t, ref_vals_v
+
+    def clear (self):
+        self.batch.clear()
+
+    def __len__ (self):
+        return len(self.batch)
+
 def unpack_data (exps: List[Experience]) -> Tuple:
     states, actions, rewards, dones, next_states = [], [], [], [], []
     for exp in exps:

@@ -79,12 +79,12 @@ class RewardTracker:
 
         now = time.time()
         speed = (frame - self.ts_frame) / (now - self.eps_ts)
-        elapsed = now - self.ts
+        elapsed = int(now - self.ts)
 
         self.ts_frame = frame
         self.eps_ts = now
 
-        print("Episode: %d, Reward: %6.3f, Speed: %6.3f, Epsilon: %s, Elapsed: %s" % (len(self.total_reward), m_reward, speed, epsilon, str(datetime.timedelta(seconds=elapsed))))
+        print("Frame: %d, Episode: %d, Reward: %6.3f, Speed: %6.3f, Epsilon: %s, Elapsed: %s" % (frame, len(self.total_reward), m_reward, speed, epsilon, str(datetime.timedelta(seconds=elapsed))))
         sys.stdout.flush()
 
         if epsilon is not None:

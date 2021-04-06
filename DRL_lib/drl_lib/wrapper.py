@@ -4,7 +4,7 @@ os.environ.setdefault('PATH', '')
 from collections import deque
 import gym
 from gym import spaces
-
+import cv2
 
 USE_PIL = True
 if USE_PIL:
