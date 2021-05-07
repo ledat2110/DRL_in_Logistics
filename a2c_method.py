@@ -5,131 +5,45 @@ import torch.nn.functional as F
 import torch.nn.utils as nn_utils
 
 import numpy as np
-import drl_lib
+import drl
 import gym
 import time
 import math
 import argparse
-import ptan
+import os
 
 from tensorboardX import SummaryWriter
+from lib import model, envs, common
 
-GAMMA = 1
-HID_SIZE = 64
-REWARD_STEPS = 1
+GAMMA = 0.99
+REWARD_STEPS = 2
 BATCH_SIZE = 16
-LEARNING_RATE = 1e-4
-ENTROPY_BETA = 0.01
-
-CLIP_GRAD = 0.1
+LEARNING_RATE_ACTOR = 1e-5
+LEARNING_RATE_CRITIC = 1e-3
+ENTROPY_BETA = 1e-4
 
 TEST_EPISODES = 10000
+TEST_ITERS = 1000
 
-ENV_COUNT = 4
-
-class LogisticsPGN (nn.Module):
-    def __init__ (self, ob_dim, action_dim):
-        super(LogisticsPGN, self).__init__ ()
-
-        self.base = nn.Sequential(
-                nn.Linear(ob_dim, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU()
-
-                )
-
-        self.mu = nn.Sequential(
-                nn.Linear(HID_SIZE, action_dim),
-                )
-
-        self.var = nn.Sequential(
-                nn.Linear(HID_SIZE, action_dim),
-                nn.Softplus()
-                )
-
-        self.val = nn.Sequential(
-                nn.Linear(HID_SIZE, 1)
-                )
-        w = torch.zeros(action_dim, dtype=torch.float32)
-        self.log_std = nn.Parameter(w)
-
-    def _format (self, x):
-        fx = x
-        if not isinstance(fx, torch.Tensor):
-            fx = torch.Tensor(x, dtype=torch.float32)
-            fx = fx.unsqueeze(0)
-        fx = fx.float()
-        return fx
-
-    def forward (self, x):
-        fx = self._format(x)
-        fx = x.float()
-        out_base = self.base(fx)
-        out_mean = self.mu(out_base)
-        out_val = self.val(out_base)
-        out_var = self.var(out_base)
-
-        return out_mean, F.softplus(self.log_std), out_val
-
-
-class Agent (drl_lib.agent.BaseAgent):
-    def __init__ (self, model: nn.Module, device="cpu", preprocessor=drl_lib.utils.Preprocessor.default_tensor):
-        super(Agent, self).__init__()
-        self.model = model
-        self.device = device
-        self.preprocessor = preprocessor
-
-    def __call__ (self, state: np.ndarray):
-        if self.preprocessor is not None:
-            state = self.preprocessor(state)
-        if torch.is_tensor(state):
-            state = state.to(self.device)
-
-        mu_v, var_v, _ = self.model(state)
-        mu = mu_v.data.cpu().numpy()
-        sigma = torch.sqrt(var_v).data.cpu().numpy()
-
-        action = np.random.normal(mu, sigma)[0]
-        action = np.array(action, dtype=np.float32, copy=False)
-        return action
- 
-def calc_logprob (mu_v: torch.Tensor, var_v: torch.Tensor, action_v: torch.Tensor) -> torch.Tensor:
-    p1 = - ((mu_v - action_v) ** 2) / (2 * var_v.clamp(min=1e-3))
-    p2 = - torch.log(torch.sqrt(2 * math.pi * var_v.clamp(min=1e-3)))
-
-    return p1 + p2
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("-sd", action='store_true', default=False)
+    parser.add_argument("-ns", '--noisy', action='store_true', default=False, help="use the noisy layers")
+    parser.add_argument("-s", "--stop", action='store_false', default=True)
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    save_path = os.path.join("saves", "a2c-" + args.name)
+    os.makedirs(save_path, exist_ok=True)
 
-    #envs = [drl_lib.env.supply_chain.SupplyChain() for _ in range(ENV_COUNT)]
-    env = drl_lib.env.supply_chain.SupplyChain()
+    #envs = [drl.env.supply_chain.SupplyChain() for _ in range(ENV_COUNT)]
+    env = envs.supply_chain.SupplyChain()
+    test_env = envs.supply_chain.SupplyChain()
     if args.sd == True:
         print("supply distribution 10")
-        env = drl_lib.env.supply_distribution10.SupplyDistribution(
+        env = envs.supply_distribution10.SupplyDistribution(
                 n_stores=3, cap_truck=2, prod_cost=1, max_prod=3,
                 store_cost=np.array([0, 2, 0, 0]),
                 truck_cost=np.array([3, 3, 0]),
@@ -138,69 +52,123 @@ if __name__ == "__main__":
                 price=2.5,
                 gamma=1, max_demand=3, episode_length=25
                 )
-    net = LogisticsPGN(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
-    agent = Agent(net, device)
+        test_env = envs.supply_distribution10.SupplyDistribution(
+                n_stores=3, cap_truck=2, prod_cost=1, max_prod=3,
+                store_cost=np.array([0, 2, 0, 0]),
+                truck_cost=np.array([3, 3, 0]),
+                cap_store=np.array([50, 10, 10, 10]),
+                penalty_cost=1,
+                price=2.5,
+                gamma=1, max_demand=3, episode_length=25
+                )
+
+    #net = model.LogisticsPGN(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    #agent = model.ContAgent(net, device)
+    # if args.noisy:
+    #     act_net = model.NoisyActorModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    # else:
+    #     act_net = model.ActorModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    act_net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    print(act_net)
+    # crt_net = model.CriticModel(env.observation_space.shape[0]).to(device)
+    agent = model.A2CAgent(act_net, env, device)
 
     writer = SummaryWriter(comment=f'-a2c_{args.name}')
-    exp_source = drl_lib.experience.ExperienceSource(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
+    exp_source = drl.experience.ExperienceSourceFirstLast(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
 
-    optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE, eps=1e-3)
+    #optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE)
+    act_opitmizer = optim.Adam(act_net.parameters(), lr=LEARNING_RATE_ACTOR)
+    # crt_optimizer = optim.Adam(crt_net.parameters(), lr=LEARNING_RATE_CRITIC)
 
-    batch = drl_lib.experience.BatchData(BATCH_SIZE)
+    batch = []
     done_episodes = 0
+    best_rewards = None
 
-    with drl_lib.tracker.RewardTracker(writer, 0) as tracker:
-        with drl_lib.tracker.TBMeanTracker(writer, 10) as tb_tracker:
+    with drl.tracker.RewardTracker(writer, 1) as tracker:
+        with drl.tracker.TBMeanTracker(writer, 10) as tb_tracker:
             for step_idx, exp in enumerate(exp_source):
-                batch.add(exp)
+                batch.append(exp)
 
-                reward, step = exp_source.reward_step()
-                if reward is not None:
-                    tracker.update(reward, step_idx)
+                rewards_steps = exp_source.pop_rewards_steps()
+                if rewards_steps:
+                    rewards, steps = zip(*rewards_steps)
+                    tracker.reward(rewards[0], step_idx)
                     done_episodes += 1
 
-                if done_episodes > TEST_EPISODES:
+                    # if best_reward is None or best_reward < reward:
+                    #     if best_reward is not None:
+                    #         print("Best reward updated: %.3f -> %.3f"%(best_reward, reward))
+                    #         name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                    #         fname = os.path.join(save_path, name)
+                    #         torch.save(act_net.state_dict(), fname)
+                    #     best_reward = reward
+
+                if step_idx % TEST_ITERS == 0:
+                    ts = time.time()
+                    reward, step = common.test_net(act_net, test_env, device=device)
+                    print("Test done in %.2f sec, reward %.3f, steps %d"%(time.time()-ts, reward, step))
+                    writer.add_scalar("test_reward", reward, step_idx)
+                    writer.add_scalar("test_step", step, step_idx)
+
+                    if best_rewards is None or best_rewards < reward:
+                        if best_rewards is not None:
+                            print("Best reward updated: %.3f -> %.3f"%(best_rewards, reward))
+                            name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                            fname = os.path.join(save_path, name)
+                            torch.save(act_net.state_dict(), fname)
+
+                if done_episodes > TEST_EPISODES and args.stop:
                     break
 
                 if len(batch) < BATCH_SIZE:
                     continue
 
-                states_v, actions_v, vals_ref_v = batch.pg_unpack(lambda x: net(x)[2], GAMMA**REWARD_STEPS, device)
+                states_v, actions_v, vals_ref_v = drl.experience.unpack_batch_a2c(batch, lambda x: act_net(x)[1], GAMMA ** REWARD_STEPS, device)
                 batch.clear()
 
-                optimizer.zero_grad()
-                mu_v, var_v, val_v = net(states_v)
-                loss_value_v = F.mse_loss(val_v.squeeze(-1), vals_ref_v)
+                # crt_optimizer.zero_grad()
+                # value_v = crt_net(states_v)
+                # loss_val_v = F.mse_loss(value_v.squeeze(-1), vals_ref_v)
+                # loss_val_v.backward()
+                # crt_optimizer.step()
 
-                log_prob_v = calc_logprob(mu_v, var_v, actions_v)
-                adv_v = vals_ref_v.unsqueeze(-1) - val_v.detach()
-                log_prob_v = adv_v * log_prob_v
-                loss_policy_v = -log_prob_v.mean()
+                act_opitmizer.zero_grad()
+                mu_v, value_v = act_net(states_v)
+                loss_val_v = F.mse_loss(value_v.squeeze(-1), vals_ref_v)
 
-                entropy_v = (-(torch.log(2 * math.pi * var_v + 1e-3) + 1) / 2).mean()
-                loss_entropy_v = ENTROPY_BETA * entropy_v
+                adv_v = vals_ref_v.unsqueeze(dim=-1) - value_v.detach()
+                log_prob_v = adv_v * drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
 
-                loss_policy_v.backward(retain_graph=True)
-                grads = np.concatenate([
-                    p.grad.data.cpu().numpy().flatten()
-                    for p in net.parameters() if p.grad is not None
-                    ])
+                loss_policy_v = - log_prob_v.mean()
+                loss_entropy_v = ENTROPY_BETA * (-(torch.log(2 * math.pi * torch.exp(act_net.logstd)))).mean()
 
-                loss_v = loss_value_v + loss_entropy_v
+                loss_v = loss_policy_v + loss_entropy_v + loss_val_v
                 loss_v.backward()
-                #nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
-                optimizer.step()
-                loss_v += loss_policy_v
+                act_opitmizer.step()
 
-                tb_tracker.track("grad_l2", np.sqrt(np.mean(np.square(grads))), step_idx)
-                tb_tracker.track("grad_max", np.max(np.abs(grads)), step_idx)
-                tb_tracker.track("grad_var", np.var(grads), step_idx)
+                #optimizer.zero_grad()
+                #mu_v, var_v, val_v = net(states_v)
+                #loss_value_v = F.mse_loss(val_v.squeeze(-1), vals_ref_v)
+
+                #log_prob_v = calc_logprob(mu_v, var_v, actions_v)
+                #adv_v = vals_ref_v.unsqueeze(-1) - val_v.detach()
+                #log_prob_v = adv_v * log_prob_v
+                #loss_policy_v = -log_prob_v.mean()
+
+                #entropy_v = (-(torch.log(2 * math.pi * var_v + 1e-3) + 1) / 2).mean()
+                #loss_entropy_v = ENTROPY_BETA * entropy_v
+
+                #loss_v = loss_value_v + loss_entropy_v + loss_policy_v
+                #loss_v.backward()
+                ##nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
+                #optimizer.step()
+
                 tb_tracker.track("advantage", adv_v, step_idx)
-                tb_tracker.track("values", val_v, step_idx)
+                tb_tracker.track("values", value_v, step_idx)
                 tb_tracker.track("batch_rewards", vals_ref_v, step_idx)
                 tb_tracker.track("log_prob", log_prob_v, step_idx)
                 tb_tracker.track("loss_entropy", loss_entropy_v, step_idx)
-                tb_tracker.track("loss_value", loss_value_v, step_idx)
-                tb_tracker.track("loss_policy_v", loss_policy_v, step_idx)
+                tb_tracker.track("loss_value", loss_val_v, step_idx)
+                tb_tracker.track("loss_policy", loss_policy_v, step_idx)
                 tb_tracker.track("loss", loss_v, step_idx)
 

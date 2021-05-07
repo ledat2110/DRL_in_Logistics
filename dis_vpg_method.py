@@ -4,11 +4,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import numpy as np
-import drl_lib
+import drl
 import gym
 import time
 import math
 
+from lib import envs
 from tensorboardX import SummaryWriter
 
 GAMMA = 1
@@ -65,8 +66,8 @@ class LogisticsPGN (nn.Module):
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    #envs = [drl_lib.env.supply_chain.DiscreteSupplyChain() for _ in range(ENV_COUNT)]
-    env = drl_lib.env.supply_distribution3.SupplyDistribution(
+    #envs = [drl.env.supply_chain.DiscreteSupplyChain() for _ in range(ENV_COUNT)]
+    env = envs.supply_distribution3.SupplyDistribution(
             n_stores=3, cap_truck=2, prod_cost=1, max_prod=3,
             store_cost=np.array([0, 2, 0, 0]),
             truck_cost=np.array([3, 3, 0]),
@@ -74,18 +75,18 @@ if __name__ == "__main__":
             penalty_cost=1, price=2.5, gamma=1, max_demand=3, episode_length=25
             )
     net = LogisticsPGN(env.observation_dim(), env.action_space.n).to(device)
-    agent = drl_lib.agent.PolicyAgent(net, device=device, apply_softmax=True)
+    agent = drl.agent.PolicyAgent(net, device=device, apply_softmax=True)
 
     writer = SummaryWriter(comment='-vpg')
-    exp_source = drl_lib.experience.ExperienceSource(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
+    exp_source = drl.experience.ExperienceSource(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
 
     optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE)
-    batch = drl_lib.experience.BatchData(max_size=BATCH_SIZE)
+    batch = drl.experience.BatchData(max_size=BATCH_SIZE)
 
-    baseline_buf = drl_lib.utils.MeanBuffer(BASELINE_STEPS)
+    baseline_buf = drl.utils.MeanBuffer(BASELINE_STEPS)
     done_episodes = 0
-    with drl_lib.tracker.RewardTracker(writer, 100) as tracker:
-        with drl_lib.tracker.TBMeanTracker(writer, 10) as tb_tracker:
+    with drl.tracker.RewardTracker(writer, 100) as tracker:
+        with drl.tracker.TBMeanTracker(writer, 10) as tb_tracker:
             for step_idx, exp in enumerate(exp_source):
                 baseline_buf.add(exp.reward)
                 baseline = baseline_buf.mean()
