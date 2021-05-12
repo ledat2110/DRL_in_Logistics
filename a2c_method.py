@@ -16,9 +16,9 @@ from tensorboardX import SummaryWriter
 from lib import model, envs, common
 
 GAMMA = 0.99
-REWARD_STEPS = 2
+REWARD_STEPS = 1
 BATCH_SIZE = 16
-LEARNING_RATE_ACTOR = 1e-5
+LEARNING_RATE_ACTOR = 1e-4
 LEARNING_RATE_CRITIC = 1e-3
 ENTROPY_BETA = 1e-4
 
@@ -113,9 +113,10 @@ if __name__ == "__main__":
                     if best_rewards is None or best_rewards < reward:
                         if best_rewards is not None:
                             print("Best reward updated: %.3f -> %.3f"%(best_rewards, reward))
-                            name = "best_%+.3f_%d.dat"%(reward, step_idx)
-                            fname = os.path.join(save_path, name)
-                            torch.save(act_net.state_dict(), fname)
+                        name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                        fname = os.path.join(save_path, name)
+                        torch.save(act_net.state_dict(), fname)
+                        best_rewards = reward
 
                 if done_episodes > TEST_EPISODES and args.stop:
                     break
@@ -137,7 +138,7 @@ if __name__ == "__main__":
                 loss_val_v = F.mse_loss(value_v.squeeze(-1), vals_ref_v)
 
                 adv_v = vals_ref_v.unsqueeze(dim=-1) - value_v.detach()
-                log_prob_v = adv_v * drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
+                log_prob_v = adv_v * common.cal_log_prob(mu_v, act_net.logstd, actions_v)
 
                 loss_policy_v = - log_prob_v.mean()
                 loss_entropy_v = ENTROPY_BETA * (-(torch.log(2 * math.pi * torch.exp(act_net.logstd)))).mean()

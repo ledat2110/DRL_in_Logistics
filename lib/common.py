@@ -6,6 +6,8 @@ import numpy as np
 import math
 import collections
 
+import torch.distributions as D
+
 from . import envs
 
 def test_net (net, env, count=10, device="cpu"):
@@ -26,11 +28,11 @@ def test_net (net, env, count=10, device="cpu"):
     
     return rewards / count, steps / count
 
-def cal_log_prob (mu_v, var_v, actions_v):
-    p1 = - ((mu_v - actions_v) ** 2) / (2 * var_v.clamp(min=1e-3))
-    p2 = - torch.log(torch.sqrt(2 * math.pi * var_v))
+def cal_log_prob (mu_v, logstd_v, actions_v):
+    t = D.Independent(D.Normal(mu_v, torch.exp(logstd_v)), 1)
+    log_prob = t.log_prob(actions_v)
 
-    return p1 + p2
+    return log_prob
 
 def make_mul_sp ():
     store_cost = np.array([0, 0, 0, 1, 2, 2, 0, 1, 2, 1], dtype=np.float32)

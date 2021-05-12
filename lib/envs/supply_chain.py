@@ -42,7 +42,7 @@ class SupplyChain (gym.Env):
                     truck_cost: np.array=np.array([3, 3, 0], dtype=np.float32),
                     storage_capacity: np.array=np.array([50, 10, 10, 10], dtype=np.float32),
                     penalty_cost: int=1, price: int=3,
-                    max_demand: int=3, num_period: int=25, periodic_demand: bool=True,
+                    max_demand: int=4, num_period: int=25, periodic_demand: bool=True,
                     matrix_state: bool=False,
                     disp: bool=False):
         self.num_period = num_period
@@ -97,7 +97,7 @@ class SupplyChain (gym.Env):
 
     def step (self, action: np.ndarray):
         # cliping action into feasible action
-        # action = self._clipping_action(action)
+        action = self.clipping_action(action)
         # update inventory
         self._update_inventory(action)
 

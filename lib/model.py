@@ -41,10 +41,10 @@ class A2CModel (nn.Module):
                 nn.ReLU(),
                 nn.Linear(HID_SIZE, HID_SIZE),
                 nn.ReLU(),
-                # nn.Linear(HID_SIZE, HID_SIZE),
-                # nn.ReLU(),
-                # nn.Linear(HID_SIZE, HID_SIZE),
-                # nn.ReLU(),
+                nn.Linear(HID_SIZE, HID_SIZE),
+                nn.ReLU(),
+                nn.Linear(HID_SIZE, HID_SIZE),
+                nn.ReLU(),
                 # nn.Linear(HID_SIZE, HID_SIZE),
                 # nn.ReLU(),
                 # nn.Linear(HID_SIZE, HID_SIZE),
@@ -68,7 +68,7 @@ class A2CModel (nn.Module):
             nn.Linear(HID_SIZE, 1)
         )
 
-        self.logstd = nn.Parameter(torch.zeros(act_size))
+        self.logstd = nn.Parameter(torch.zeros((1, act_size)))
 
     def forward (self, x):
         base_out = self.base(x)
@@ -92,9 +92,9 @@ class MulSpActorModel (nn.Module):
 
         out_size = drl.common.utils.get_conv_out(self.conv, input_shape)
         self.mu = nn.Sequential(
-                nn.Linear(out_size, 512),
+                nn.Linear(out_size, 64),
                 nn.ReLU(),
-                nn.Linear(512, act_size)
+                nn.Linear(64, act_size)
                 )
 
         self.logstd = nn.Parameter(torch.zeros(act_size))
@@ -116,8 +116,8 @@ class MatrixModel (nn.Module):
                 nn.ReLU(),
                 nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
                 nn.ReLU(),
-                # nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1),
-                # nn.ReLU(),
+                nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1),
+                nn.ReLU(),
                 nn.Conv1d(64, 64, kernel_size=3, stride=1),
                 nn.ReLU(),
                 )
@@ -162,8 +162,8 @@ class A2CAgent (drl.agent.BaseAgent):
         rnd = np.random.normal(size=logstd.shape)
         actions = mu + np.exp(logstd) * rnd
         
-        for idx, action in enumerate(actions):
-            actions[idx] = self.env.clipping_action(action)
+        # for idx, action in enumerate(actions):
+        #     actions[idx] = self.env.clipping_action(action)
 
         return actions, agent_states
 

@@ -16,9 +16,9 @@ from tensorboardX import SummaryWriter
 from lib import model, envs, common
 
 GAMMA = 0.99
-REWARD_STEPS = 2
-BATCH_SIZE = 32
-LEARNING_RATE_ACTOR =  5e-5
+REWARD_STEPS = 1
+BATCH_SIZE = 16
+LEARNING_RATE_ACTOR =  1e-4
 LEARNING_RATE_CRITIC = 1e-3
 ENTROPY_BETA = 1e-4
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_path = os.path.join("saves", "a2c-" + args.name)
+    save_path = os.path.join("saves", "matrix_a2c-" + args.name)
     os.makedirs(save_path, exist_ok=True)
 
     #envs = [drl.env.supply_chain.SupplyChain() for _ in range(ENV_COUNT)]
@@ -68,9 +68,9 @@ if __name__ == "__main__":
     n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
     print(n_parameters)
     #crt_net = model.MatrixCriticModel(env.observation_space.shape).to(device)
-    agent = model.A2CAgent2(act_net, device)
+    agent = model.A2CAgent(act_net, env, device)
 
-    writer = SummaryWriter(comment=f'-a2c_{args.name}')
+    writer = SummaryWriter(comment=f'-matrix-a2c_{args.name}')
     exp_source = drl.experience.ExperienceSourceFirstLast(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
 
     #optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE)
@@ -102,9 +102,10 @@ if __name__ == "__main__":
                     if best_rewards is None or best_rewards < reward:
                         if best_rewards is not None:
                             print("Best reward updated: %.3f -> %.3f"%(best_rewards, reward))
-                            name = "best_%+.3f_%d.dat"%(reward, step_idx)
-                            fname = os.path.join(save_path, name)
-                            torch.save(act_net.state_dict(), fname)
+                        name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                        fname = os.path.join(save_path, name)
+                        torch.save(act_net.state_dict(), fname)
+                        best_rewards = reward
 
                 if done_episodes > TEST_EPISODES and args.stop:
                     break
@@ -126,7 +127,8 @@ if __name__ == "__main__":
                 loss_val_v = F.mse_loss(val_v.squeeze(-1), vals_ref_v)
 
                 adv_v = vals_ref_v.unsqueeze(dim=-1) - val_v.detach()
-                log_prob_v = adv_v * drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
+                # log_prob_v = adv_v * drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
+                log_prob_v = adv_v * common.cal_log_prob(mu_v, act_net.logstd, actions_v)
 
                 loss_policy_v = -log_prob_v.mean()
                 loss_entropy_v = ENTROPY_BETA * (-(torch.log(2 * math.pi * torch.exp(act_net.logstd)))).mean()

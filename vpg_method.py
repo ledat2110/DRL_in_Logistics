@@ -16,7 +16,7 @@ from tensorboardX import SummaryWriter
 from lib import model, envs, common
 
 GAMMA = 0.99
-LEARNING_RATE = 1e-5
+LEARNING_RATE = 1e-4
 ENTROPY_WEIGHT = 1e-4
 BATCH_SIZE = 16
 BASELINE_STEPS = 1000
@@ -115,9 +115,9 @@ if __name__ == "__main__":
                     if best_reward is None or best_reward < reward:
                         if best_reward is not None:
                             print("Best reward updated: %.3f -> %.3f"%(best_reward, reward))
-                            name = "best_%+.3f_%d.dat"%(reward, step_idx)
-                            fname = os.path.join(save_path, name)
-                            torch.save(act_net.state_dict(), fname)
+                        name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                        fname = os.path.join(save_path, name)
+                        torch.save(act_net.state_dict(), fname)
                         best_reward = reward
 
                 if done_episodes > TEST_EPISODES and args.stop:
@@ -134,8 +134,8 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 mu_v, _ = act_net(states_v)
 
-                log_prob_v = drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
-                # log_prob_v = common.cal_log_prob(mu_v, act_net.logstd, actions_v)
+                # log_prob_v = drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
+                log_prob_v = common.cal_log_prob(mu_v, act_net.logstd, actions_v)
                 log_prob_v = scales_v.unsqueeze(-1) * log_prob_v
                 loss_policy_v = -log_prob_v.mean()
 

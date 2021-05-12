@@ -14,9 +14,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     assert args.type in ['a2c', 'vpg', 'matrix_a2c', 'matrix_vpg']
-    env = envs.supply_chain.SupplyChain(disp=True)
     if args.type == 'vpg':
+        env = envs.supply_chain.SupplyChain(disp=True)
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0])
+        net.load_state_dict(torch.load(args.model))
+    if args.type == 'matrix_vpg':
+        env = envs.supply_chain.SupplyChain(matrix_state=True, disp=True)
+        net = model.MatrixModel(env.observation_space.shape, env.action_space.shape[0])
         net.load_state_dict(torch.load(args.model))
     obs = env.reset()
     while True:

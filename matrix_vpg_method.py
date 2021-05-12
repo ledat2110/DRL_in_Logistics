@@ -16,12 +16,12 @@ from tensorboardX import SummaryWriter
 from lib import model, envs, common
 
 GAMMA = 0.99
-LEARNING_RATE = 5e-5
+LEARNING_RATE = 1e-4
 ENTROPY_WEIGHT = 1e-4
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 BASELINE_STEPS = 1000
 
-REWARD_STEPS = 2
+REWARD_STEPS = 1
 TEST_EPISODES = 10000
 TEST_ITERS = 1000
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     act_net = model.MatrixModel(env.observation_space.shape, env.action_space.shape[0]).to(device)
     print(act_net)
     n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
-    agent = model.A2CAgent(act_net, device)
+    agent = model.A2CAgent(act_net, env, device)
 
     writer = SummaryWriter(comment=f'-cont_matrix_vpg-{args.name}')
     exp_source = drl.experience.ExperienceSourceFirstLast(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
@@ -96,9 +96,9 @@ if __name__ == "__main__":
                     if best_reward is None or best_reward < reward:
                         if best_reward is not None:
                             print("Best reward updated: %.3f -> %.3f"%(best_reward, reward))
-                            name = "best_%+.3f_%d.dat"%(reward, step_idx)
-                            fname = os.path.join(save_path, name)
-                            torch.save(act_net.state_dict(), fname)
+                        name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                        fname = os.path.join(save_path, name)
+                        torch.save(act_net.state_dict(), fname)
                         best_reward = reward
 
                 if done_episodes > TEST_EPISODES and args.stop:
@@ -115,7 +115,8 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 mu_v, _ = act_net(states_v)
 
-                log_prob_v = drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
+                # log_prob_v = drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
+                log_prob_v = common.cal_log_prob(mu_v, act_net.logstd, actions_v)
                 log_prob_v = scales_v.unsqueeze(-1) * log_prob_v
                 loss_policy_v = -log_prob_v.mean()
 
