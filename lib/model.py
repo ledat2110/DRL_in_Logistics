@@ -116,16 +116,16 @@ class MatrixModel (nn.Module):
                 nn.ReLU(),
                 nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
                 nn.ReLU(),
-                nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1),
-                nn.ReLU(),
+                # nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1),
+                # nn.ReLU(),
                 nn.Conv1d(64, 64, kernel_size=3, stride=1),
                 nn.ReLU(),
                 )
         conv_out_size = drl.common.utils.get_conv_out(self.conv, input_shape)
         self.mu = nn.Sequential(
-                nn.Linear(conv_out_size, HID_SIZE),
+                nn.Linear(conv_out_size, 512),
                 nn.ReLU(),
-                nn.Linear(HID_SIZE, act_size),
+                nn.Linear(512, act_size),
                 # nn.ReLU(),
                 )
 

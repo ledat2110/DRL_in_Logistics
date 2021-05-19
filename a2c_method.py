@@ -32,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("-sd", action='store_true', default=False)
     parser.add_argument("-ns", '--noisy', action='store_true', default=False, help="use the noisy layers")
     parser.add_argument("-s", "--stop", action='store_false', default=True)
+    parser.add_argument("-m", "---model", help='load pretrained model')
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -70,6 +71,9 @@ if __name__ == "__main__":
     #     act_net = model.ActorModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
     act_net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
     print(act_net)
+    if args.model:
+        act_net.load_state_dict(torch.load(args.model))
+        print("load completed")
     # crt_net = model.CriticModel(env.observation_space.shape[0]).to(device)
     agent = model.A2CAgent(act_net, env, device)
 

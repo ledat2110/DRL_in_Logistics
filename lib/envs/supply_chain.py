@@ -8,12 +8,13 @@ import math
 import pygame
 import collections
 
+from PIL import Image
 from typing import Tuple, List, Dict
 
 WIDTH = 640
 HEIGHT = 480
 BLOCK_SIZE = 40
-SPEED = 1
+SPEED = 20
 
 # COLOR
 WHITE = (255, 255, 255)
@@ -208,6 +209,11 @@ class SupplyChain (gym.Env):
         reward_txt = font.render("Reward: %.3f"%self.sum_reward, True, BLACK)
         self.display.blit(reward_txt, REWARD_POS)
         pygame.display.flip()
+
+    def save_img (self, name):
+        data = pygame.image.tostring(self.display, 'RGB')
+        image = Image.frombytes('RGB', (WIDTH, HEIGHT), data)
+        image.save(name)
 
 class DiscreteSupplyChain (gym.Env):
     def __init__ (self, n_stores: int=3, cap_truck: int=2, production_cost: int=1, max_production: int=3,

@@ -18,7 +18,7 @@ from lib import model, envs, common
 GAMMA = 0.99
 REWARD_STEPS = 1
 BATCH_SIZE = 16
-LEARNING_RATE_ACTOR =  1e-4
+LEARNING_RATE_ACTOR =  1e-5
 LEARNING_RATE_CRITIC = 1e-3
 ENTROPY_BETA = 1e-4
 
@@ -30,6 +30,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     parser.add_argument("-sd", action='store_true', default=False)
+    parser.add_argument("-m", "---model", help='load pretrained model')
     parser.add_argument("-s", "--stop", action='store_false', default=True, help="stop when reach mximum episode")
     args = parser.parse_args()
 
@@ -65,6 +66,9 @@ if __name__ == "__main__":
     #agent = model.ContAgent(net, device)
     act_net = model.MatrixModel(env.observation_space.shape, env.action_space.shape[0]).to(device)
     print(act_net)
+    if args.model:
+        act_net.load_state_dict(torch.load(args.model))
+        print("load completed")
     n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
     print(n_parameters)
     #crt_net = model.MatrixCriticModel(env.observation_space.shape).to(device)

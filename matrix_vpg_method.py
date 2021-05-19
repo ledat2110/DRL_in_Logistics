@@ -38,8 +38,15 @@ if __name__ == "__main__":
     save_path = os.path.join("saves", "matrix_vpg-"+args.name)
     os.makedirs(save_path, exist_ok=True)
 
-    env = envs.supply_chain.SupplyChain(matrix_state=True)
-    test_env = envs.supply_chain.SupplyChain(matrix_state=True)
+    env = envs.supply_chain.SupplyChain(
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10]),
+        matrix_state=True
+        )
+    test_env = envs.supply_chain.SupplyChain(
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10]), 
+        matrix_state=True)
     if args.sd == True:
         print("supply distribution 10")
         env = envs.supply_distribution10.SupplyDistribution(
@@ -58,6 +65,8 @@ if __name__ == "__main__":
     #net = model.LogisticsPGN(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
     act_net = model.MatrixModel(env.observation_space.shape, env.action_space.shape[0]).to(device)
     print(act_net)
+    n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
+    print(n_parameters)
     n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
     agent = model.A2CAgent(act_net, env, device)
 

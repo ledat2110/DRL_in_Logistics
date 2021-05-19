@@ -40,7 +40,10 @@ if __name__ == "__main__":
     os.makedirs(save_path, exist_ok=True)
 
     env = envs.supply_chain.SupplyChain()
-    test_env = envs.supply_chain.SupplyChain()
+    test_env = envs.supply_chain.SupplyChain(
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10])
+    )
     if args.sd == True:
         print("supply distribution 10")
         env = envs.supply_distribution10.SupplyDistribution(
@@ -124,7 +127,7 @@ if __name__ == "__main__":
                     break
 
                 if len(batch) < BATCH_SIZE:
-                    continue
+                    continue    
 
                 states_v, actions_v, rewards_v, dones_v, last_states_v = drl.experience.unpack_batch_dqn(batch, device)
                 batch.clear()
