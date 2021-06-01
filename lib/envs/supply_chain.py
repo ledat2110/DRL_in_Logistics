@@ -44,7 +44,7 @@ class SupplyChain (gym.Env):
                     storage_capacity: np.array=np.array([50, 10, 10, 10], dtype=np.float32),
                     penalty_cost: int=1, price: int=3,
                     max_demand: int=4, num_period: int=52, periodic_demand: bool=True,
-                    matrix_state: bool=False, v_demand: int=0, m_demand: int=0,
+                    matrix_state: bool=False, v_demand: bool=False, m_demand: bool=False,
                     disp: bool=False):
         self.num_period = num_period
         self.unit_cost = production_cost
@@ -58,8 +58,8 @@ class SupplyChain (gym.Env):
         self.demand_max = max_demand
         self.num_stores = n_stores
         self.periodic_demand = periodic_demand
-        self.v_demand = v_demand
-        self.m_demand = m_demand
+        self.v_demand = np.random.uniform(1/3, 3) if v_demand == True else 0
+        self.m_demand = np.random.uniform(1/3, 3) if m_demand == True else 0
 
         self.action_dim = self.storage_capacity.shape[0]
         self.action_space = gym.spaces.Box(
