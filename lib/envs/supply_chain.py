@@ -43,7 +43,7 @@ class SupplyChain (gym.Env):
                     truck_cost: np.array=np.array([1, 1, 1], dtype=np.float32),
                     storage_capacity: np.array=np.array([50, 10, 10, 10], dtype=np.float32),
                     penalty_cost: int=1, price: int=3,
-                    max_demand: int=3, num_period: int=52, periodic_demand: bool=True,
+                    max_demand: int=4, num_period: int=52, periodic_demand: bool=True,
                     matrix_state: bool=False, v_demand: int=0, m_demand: int=0,
                     disp: bool=False):
         self.num_period = num_period
@@ -182,12 +182,14 @@ class SupplyChain (gym.Env):
 
     def _update_demand (self):
         demand = np.zeros(self.num_stores, dtype=int)
+        # self.m_demand = np.random.uniform(1/3, 3)
+        # self.v_demand = np.random.uniform(1/3, 3)
         for i in range(self.num_stores):
-            eps = np.random.normal(loc=0.0, scale=self.demand_max/2)
+            eps = np.random.uniform(-self.demand_max/2, self.demand_max/2)
             v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
                 * np.sin(2*(self.period + 2* i) /26) / 4
             m = self.demand_max + self.m_demand * (self.period / self.num_period)
-            demand[i] = np.floor(v + m + eps)
+            demand[i] = np.floor(m + eps + v)
             # if self.periodic_demand == True:
             #     eps = np.random.choice([0, 1], p=(0.5, 0.5))
             #     rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
@@ -197,6 +199,15 @@ class SupplyChain (gym.Env):
             #     demand[i] = np.random.randint(low=0, high=self.demand_max)
 
         self.demand = demand
+
+    def get_demand (self):
+        self.period = 0
+        demands = []
+        while self.period < self.num_period:
+            self._update_demand()
+            demands.append(self.demand)
+            self.period += 1
+        return demands
 
     def render (self, action, mode='human', close=False):
         self.display.fill(WHITE)
