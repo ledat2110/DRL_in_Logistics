@@ -15,14 +15,14 @@ import os
 from tensorboardX import SummaryWriter
 from lib import model, envs, common
 
-GAMMA = 0.99
+GAMMA = 0.95
 LEARNING_RATE = 1e-4
 ENTROPY_WEIGHT = 1e-4
-BATCH_SIZE = 16
+BATCH_SIZE = 256
 BASELINE_STEPS = 1000
 
-REWARD_STEPS = 2
-TEST_EPISODES = 10000
+REWARD_STEPS = 1
+TEST_EPISODES = 15000
 TEST_ITERS = 1000
 
 
