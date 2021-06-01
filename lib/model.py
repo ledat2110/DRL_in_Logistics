@@ -126,6 +126,8 @@ class MatrixModel (nn.Module):
         self.mu = nn.Sequential(
                 nn.Linear(conv_out_size, HID_SIZE),
                 nn.ReLU(),
+                nn.Linear(conv_out_size, HID_SIZE),
+                nn.ReLU(),
                 nn.Linear(HID_SIZE, act_size),
                 # nn.ReLU(),
                 )
