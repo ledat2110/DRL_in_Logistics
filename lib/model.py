@@ -1,3 +1,4 @@
+from gym.core import Env
 import numpy as np
 import drl
 
@@ -5,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-HID_SIZE = 64
+HID_SIZE = 256
 
 class ThresholdAgent:
     def __init__ (self, eps: np.array, Q: np.array, action_dim: int):
@@ -37,14 +38,14 @@ class A2CModel (nn.Module):
                 nn.ReLU(),
                 nn.Linear(HID_SIZE, HID_SIZE),
                 nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
-                nn.Linear(HID_SIZE, HID_SIZE),
-                nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
                 # nn.Linear(HID_SIZE, HID_SIZE),
                 # nn.ReLU(),
                 # nn.Linear(HID_SIZE, HID_SIZE),
@@ -114,18 +115,18 @@ class MatrixModel (nn.Module):
         self.conv = nn.Sequential(
                 nn.Conv1d(input_shape[0], 32, kernel_size=3, stride=1, padding=1),
                 nn.ReLU(),
-                nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
-                nn.ReLU(),
+                # nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
+                # nn.ReLU(),
                 # nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1),
                 # nn.ReLU(),
-                nn.Conv1d(64, 64, kernel_size=3, stride=1),
+                nn.Conv1d(32, 64, kernel_size=3, stride=1),
                 nn.ReLU(),
                 )
         conv_out_size = drl.common.utils.get_conv_out(self.conv, input_shape)
         self.mu = nn.Sequential(
-                nn.Linear(conv_out_size, 512),
+                nn.Linear(conv_out_size, HID_SIZE),
                 nn.ReLU(),
-                nn.Linear(512, act_size),
+                nn.Linear(HID_SIZE, act_size),
                 # nn.ReLU(),
                 )
 
@@ -216,7 +217,7 @@ class DDPGActor (nn.Module):
                 # nn.Linear(HID_SIZE, HID_SIZE),
                 # nn.ReLU(),
                 nn.Linear(HID_SIZE, act_size),
-                nn.ReLU(),
+                # nn.ReLU(),
                 )
 
     def forward (self, x):
@@ -258,7 +259,7 @@ class AgentDDPG(drl.agent.BaseAgent):
     Agent implementing Orstein-Uhlenbeck exploration process
     """
     def __init__(self, net, storage_capacity, device="cpu", ou_enabled=True,
-                 ou_mu=0.0, ou_teta=0.15, ou_sigma=0.2,
+                 ou_mu=0.0, ou_teta=0.5, ou_sigma=0.6,
                  ou_epsilon=1.0):
         self.storage_capacity = storage_capacity
         self.num_stores = storage_capacity.shape[0]
@@ -293,14 +294,5 @@ class AgentDDPG(drl.agent.BaseAgent):
                 new_a_states.append(a_state)
         else:
             new_a_states = agent_states
-
-        for idx, action in enumerate(actions):
-            inventory = states[idx][:self.num_stores]
-            upper_bound = self.storage_capacity - inventory
-            action = np.clip(action, np.zeros_like(action), upper_bound)
-            if np.sum(action[1:]) > inventory[0] :
-                action[1:] = action[1:] * inventory[0] / np.sum(action[1:])
-            action = np.around(action, 4).astype(np.float32)
-            actions[idx] = action
 
         return actions, new_a_states

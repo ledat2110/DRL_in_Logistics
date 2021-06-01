@@ -13,14 +13,14 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 
-GAMMA = 0.99
-REWARD_STEPS = 5
-BATCH_SIZE = 64
+GAMMA = 0.95
+REWARD_STEPS = 1
+BATCH_SIZE = 512
 LEARNING_RATE = 1e-4
 ENTROPY_BETA = 0.01
 
 #CLIP_GRAD = 0.1
-REPLAY_SIZE = 100000
+REPLAY_SIZE = 600000
 REPLAY_INITIAL = 10000
 
 TEST_EPISODES = 10000
@@ -108,6 +108,7 @@ if __name__ == "__main__":
                 if rewards_steps:
                     rewards, steps = zip(*rewards_steps)
                     tb_tracker.track("episode_steps", steps[0], frame_idx)
+                    # print(rewards[0])
                     tracker.reward(rewards[0], frame_idx)
                     done_episodes += 1
 
@@ -118,7 +119,21 @@ if __name__ == "__main__":
                     break
 
                 batch = buffer.sample(BATCH_SIZE)
+                # print(batch)
                 states_v, actions_v, rewards_v, dones_mask_v, last_states_v = drl.experience.unpack_batch_dqn(batch, device)
+                # print(states_v)
+                # if (torch.isnan(states_v)).sum() == 1 or (torch.isinf(states_v)).sum() == 1:
+                #     print(states_v)
+                #     quit()
+                # if (torch.isnan(actions_v)).sum() == 1 or (torch.isinf(actions_v)).sum() == 1:
+                #     print(actions_v)
+                #     quit()
+                # if (torch.isnan(rewards_v)).sum() == 1 or (torch.isinf(rewards_v)).sum() == 1:
+                #     print(rewards_v)
+                #     quit()
+                # if (torch.isnan(last_states_v)).sum() == 1 or (torch.isinf(last_states_v)).sum() == 1:
+                #     print(last_states_v)
+                #     quit()
 
 
                 # train critic
@@ -134,8 +149,8 @@ if __name__ == "__main__":
                 critic_loss_v.backward()
 
                 crt_opt.step()
-                tb_tracker.track("loss_critic", critic_loss_v, frame_idx)
-                tb_tracker.track("critic_ref", q_ref_v.mean(), frame_idx)
+                # tb_tracker.track("loss_critic", critic_loss_v, frame_idx)
+                # tb_tracker.track("critic_ref", q_ref_v.mean(), frame_idx)
 
                 # train actor
                 act_opt.zero_grad()
@@ -146,7 +161,7 @@ if __name__ == "__main__":
                 actor_loss_v.backward()
 
                 act_opt.step()
-                tb_tracker.track("loss_actor", actor_loss_v, frame_idx)
+                # tb_tracker.track("loss_actor", actor_loss_v, frame_idx)
 
                 tgt_act_net.alpha_sync(1 - 1e-3)
                 tgt_crt_net.alpha_sync(1 - 1e-3)

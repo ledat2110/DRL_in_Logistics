@@ -22,7 +22,7 @@ LEARNING_RATE_ACTOR = 1e-4
 LEARNING_RATE_CRITIC = 1e-3
 ENTROPY_BETA = 1e-4
 
-TEST_EPISODES = 10000
+TEST_EPISODES = 100000
 TEST_ITERS = 1000
 
 
@@ -129,6 +129,7 @@ if __name__ == "__main__":
                     continue
 
                 states_v, actions_v, vals_ref_v = drl.experience.unpack_batch_a2c(batch, lambda x: act_net(x)[1], GAMMA ** REWARD_STEPS, device)
+                # print(batch)
                 batch.clear()
 
                 # crt_optimizer.zero_grad()

@@ -39,12 +39,12 @@ font = pygame.font.SysFont("Arial", FONT_SIZE)
 
 class SupplyChain (gym.Env):
     def __init__ (self, n_stores: int=3, cap_truck: int=2, production_cost: int=1, max_production: int=3,
-                    store_cost: np.array=np.array([0, 2, 0, 0], dtype=np.float32),
-                    truck_cost: np.array=np.array([3, 3, 0], dtype=np.float32),
+                    store_cost: np.array=np.array([0, 2, 2, 2], dtype=np.float32),
+                    truck_cost: np.array=np.array([1, 1, 1], dtype=np.float32),
                     storage_capacity: np.array=np.array([50, 10, 10, 10], dtype=np.float32),
                     penalty_cost: int=1, price: int=3,
-                    max_demand: int=4, num_period: int=25, periodic_demand: bool=True,
-                    matrix_state: bool=False,
+                    max_demand: int=3, num_period: int=52, periodic_demand: bool=True,
+                    matrix_state: bool=False, v_demand: int=0, m_demand: int=0,
                     disp: bool=False):
         self.num_period = num_period
         self.unit_cost = production_cost
@@ -58,6 +58,8 @@ class SupplyChain (gym.Env):
         self.demand_max = max_demand
         self.num_stores = n_stores
         self.periodic_demand = periodic_demand
+        self.v_demand = v_demand
+        self.m_demand = m_demand
 
         self.action_dim = self.storage_capacity.shape[0]
         self.action_space = gym.spaces.Box(
@@ -99,6 +101,7 @@ class SupplyChain (gym.Env):
     def step (self, action: np.ndarray):
         # cliping action into feasible action
         action = self.clipping_action(action)
+        # print(action)
         # update inventory
         self._update_inventory(action)
 
@@ -129,12 +132,14 @@ class SupplyChain (gym.Env):
         if self.period >= self.num_period:
             done = True
 
+        # print(state)
+
         return state, reward, done, info
 
     def clipping_action (self, action: np.ndarray) -> np.ndarray:
         upper_bound = self.storage_capacity - self.inventory
         action = np.clip(action, np.zeros(self.action_dim), upper_bound)
-        if np.sum(action[1:]) > self.inventory[0] :
+        if np.sum(action[1:]) > self.inventory[0] and np.sum(action[1:]) != 0:
             action[1:] = action[1:] * self.inventory[0] / np.sum(action[1:])
         action = np.around(action, 4).astype(np.float32)
 
@@ -149,7 +154,7 @@ class SupplyChain (gym.Env):
     def _update_reward (self, action: np.ndarray) -> float:
         zeros_array = np.zeros_like(self.inventory)
 
-        revenue = np.sum(self.demand * self.product_price)
+        revenue = np.sum(np.maximum(self.demand, self.inventory[1:])  * self.product_price)
         production_cost = self.unit_cost * action[0]
         storage_cost = np.sum(np.maximum(zeros_array, self.inventory) * self.storage_cost)
         penalty_cost = np.sum(np.minimum(zeros_array, self.inventory) * self.penalty_cost)
@@ -178,13 +183,18 @@ class SupplyChain (gym.Env):
     def _update_demand (self):
         demand = np.zeros(self.num_stores, dtype=int)
         for i in range(self.num_stores):
-            if self.periodic_demand == True:
-                eps = np.random.choice([0, 1], p=(0.5, 0.5))
-                rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
-                val = .5 * self.demand_max * np.sin(rad) + .5 * self.demand_max + eps
-                demand[i] = int(np.floor(val))
-            else:
-                demand[i] = np.random.randint(low=0, high=self.demand_max)
+            eps = np.random.normal(loc=0.0, scale=self.demand_max/2)
+            v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
+                * np.sin(2*(self.period + 2* i) /26) / 4
+            m = self.demand_max + self.m_demand * (self.period / self.num_period)
+            demand[i] = np.floor(v + m + eps)
+            # if self.periodic_demand == True:
+            #     eps = np.random.choice([0, 1], p=(0.5, 0.5))
+            #     rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
+            #     val = .5 * self.demand_max * np.sin(rad) + .5 * self.demand_max + eps
+            #     demand[i] = int(np.floor(val))
+            # else:
+            #     demand[i] = np.random.randint(low=0, high=self.demand_max)
 
         self.demand = demand
 
