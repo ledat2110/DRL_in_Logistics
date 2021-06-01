@@ -39,7 +39,7 @@ if __name__ == "__main__":
     save_path = os.path.join("saves", "vpg-"+args.name)
     os.makedirs(save_path, exist_ok=True)
 
-    env = envs.supply_chain.SupplyChain(periodic_demand=False)
+    env = envs.supply_chain.SupplyChain()
     test_env = envs.supply_chain.SupplyChain(
         # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
         # storage_capacity=np.array([50, 10])
