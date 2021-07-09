@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 GAMMA = 0.95
 REWARD_STEPS = 1
-BATCH_SIZE = 512
+BATCH_SIZE = 256
 LEARNING_RATE = 1e-4
 ENTROPY_BETA = 0.01
 
@@ -23,7 +23,7 @@ ENTROPY_BETA = 0.01
 REPLAY_SIZE = 600000
 REPLAY_INITIAL = 10000
 
-TEST_EPISODES = 10000
+TEST_EPISODES = 60000
 TEST_ITERS = 1000
 
 
@@ -57,8 +57,32 @@ if __name__ == "__main__":
     os.makedirs(save_path, exist_ok=True)
 
     #envs = [drl.env.supply_chain.SupplyChain() for _ in range(ENV_COUNT)]
-    env = envs.supply_chain.SupplyChain()
-    test_env = envs.supply_chain.SupplyChain()
+    env = envs.supply_chain.SupplyChain(
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10]),
+        m_demand=False, v_demand=False,
+        # matrix_state=True
+        )
+    env2 = envs.supply_chain.SupplyChain(
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10]),
+        m_demand=True, v_demand=False,
+        # matrix_state=True
+        )
+    env3 = envs.supply_chain.SupplyChain(
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10]),
+        m_demand=False, v_demand=True,
+        # matrix_state=True
+        )    
+    test_env = envs.supply_chain.SupplyChain(
+        # m_demand=True, v_demand=True,
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10]), 
+        m_demand=True, v_demand=True,
+
+        # matrix_state=True
+        )
     if args.sd == True:
         print("supply distribution 10")
         env = envs.supply_distribution10.SupplyDistribution(
@@ -91,7 +115,7 @@ if __name__ == "__main__":
 
     writer = SummaryWriter(comment="-ddpg_" + args.name)
     agent = model.AgentDDPG(act_net, env.storage_capacity, device=device)
-    exp_source = drl.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA, steps_count=1)
+    exp_source = drl.experience.ExperienceSourceFirstLast([env, env2, env3], agent, gamma=GAMMA, steps_count=1)
     buffer = drl.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
     act_opt = optim.Adam(act_net.parameters(), lr=LEARNING_RATE)
     crt_opt = optim.Adam(crt_net.parameters(), lr=LEARNING_RATE)

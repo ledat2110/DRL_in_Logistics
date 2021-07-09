@@ -148,9 +148,62 @@ class MatrixModel (nn.Module):
 
         return mu, val
 
+class MatrixModel2 (nn.Module):
+    def __init__ (self, obs_size, act_size):
+        super(MatrixModel2, self).__init__()
+
+        self.layer1 = nn.Linear(obs_size, 12)
+        self.layer2 = nn.Linear(obs_size, 12)
+        self.layer3 = nn.Linear(obs_size, 12)
+
+        self.conv = nn.Sequential(
+                nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                nn.ReLU(),
+                # nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1),
+                # nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1),
+                nn.ReLU(),
+                )
+        conv_out_size = drl.common.utils.get_conv_out(self.conv, (3, 3, 4))
+        self.mu = nn.Sequential(
+                nn.Linear(conv_out_size, HID_SIZE),
+                nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
+                # nn.Linear(HID_SIZE, HID_SIZE),
+                # nn.ReLU(),
+                nn.Linear(HID_SIZE, act_size),
+                # nn.ReLU(),
+                )
+
+        # self.val = nn.Sequential(
+        #         nn.Linear(conv_out_size, HID_SIZE),
+        #         nn.ReLU(),
+        #         nn.Linear(HID_SIZE, 1),
+        #         )
+
+        self.logstd = nn.Parameter(torch.zeros(act_size))
+
+    def forward (self, x):
+        fx = x.float()
+        layer1 = self.layer1(fx)
+        layer2 = self.layer2(fx)
+        layer3 = self.layer3(fx)
+        conv_in = torch.cat([layer1, layer2, layer3], 1).view(x.size()[0], 3, 3, 4)
+
+        conv_out = self.conv(conv_in).view(x.size()[0], -1)
+        mu = self.mu(conv_out)
+        # val = self.val(conv_out)
+
+        return mu, 0
+
 
 class A2CAgent (drl.agent.BaseAgent):
-    def __init__ (self, net, env, device="cpu"):
+    def __init__ (self, net, env=None, device="cpu"):
         self.net = net
         self.device = device
         self.env = env
@@ -164,6 +217,23 @@ class A2CAgent (drl.agent.BaseAgent):
         logstd = self.net.logstd.data.cpu().numpy()
         rnd = np.random.normal(size=logstd.shape)
         actions = mu + np.exp(logstd) * rnd
+        
+        # for idx, action in enumerate(actions):
+        #     actions[idx] = self.env.clipping_action(action)
+
+        return actions, agent_states
+
+class NormalAgent (drl.agent.BaseAgent):
+    def __init__ (self, net, device="cpu"):
+        self.net = net
+        self.device = device
+
+    def __call__ (self, states, agent_states):
+        states_v = drl.agent.float32_preprocessor([states]).to(self.device)
+        states = np.array(states, copy=False)
+        mu_v, _ = self.net(states_v)
+        actions = mu_v.data.cpu().numpy()[0]
+        
         
         # for idx, action in enumerate(actions):
         #     actions[idx] = self.env.clipping_action(action)

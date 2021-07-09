@@ -43,7 +43,7 @@ def simulate_episode (env, agent):
 
 if __name__ == "__main__":
     #env = SupplyChain(num_period=25, store_cost=np.array([0, 2, 2, 2]), truck_cost=np.array([3, 3, 3]), price=7)
-    env = envs.supply_chain.SupplyChain()
+    env = envs.supply_chain.SupplyChain(m_demand=False, v_demand=False)
     agent = create_agent(env)
     writer = SummaryWriter(comment="-threshold_policy-v0")
     iter_no = 0

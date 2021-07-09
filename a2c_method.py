@@ -15,15 +15,15 @@ import os
 from tensorboardX import SummaryWriter
 from lib import model, envs, common
 
-GAMMA = 0.99
+GAMMA = 0.95
 REWARD_STEPS = 1
-BATCH_SIZE = 16
+BATCH_SIZE = 256
 LEARNING_RATE_ACTOR = 1e-4
 LEARNING_RATE_CRITIC = 1e-3
 ENTROPY_BETA = 1e-4
 
-TEST_EPISODES = 100000
-TEST_ITERS = 1000
+TEST_EPISODES = 600000
+TEST_ITERS = 10000
 
 
 if __name__ == "__main__":
@@ -40,7 +40,21 @@ if __name__ == "__main__":
     os.makedirs(save_path, exist_ok=True)
 
     #envs = [drl.env.supply_chain.SupplyChain() for _ in range(ENV_COUNT)]
-    env = envs.supply_chain.SupplyChain()
+    env = envs.supply_chain.SupplyChain(
+        m_demand=False, v_demand=False
+        )
+    env2 = envs.supply_chain.SupplyChain(
+        m_demand=True, v_demand=False
+        )
+    env3 = envs.supply_chain.SupplyChain(
+        m_demand=False, v_demand=True
+        )    
+    test_env = envs.supply_chain.SupplyChain(
+        m_demand=True, v_demand=True
+        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
+        # storage_capacity=np.array([50, 10])
+        
+    )
     test_env = envs.supply_chain.SupplyChain()
     if args.sd == True:
         print("supply distribution 10")
@@ -78,7 +92,7 @@ if __name__ == "__main__":
     agent = model.A2CAgent(act_net, env, device)
 
     writer = SummaryWriter(comment=f'-a2c_{args.name}')
-    exp_source = drl.experience.ExperienceSourceFirstLast(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
+    exp_source = drl.experience.ExperienceSourceFirstLast([env, env2, env3], agent, steps_count=REWARD_STEPS, gamma=GAMMA)
 
     #optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE)
     act_opitmizer = optim.Adam(act_net.parameters(), lr=LEARNING_RATE_ACTOR)
@@ -86,7 +100,12 @@ if __name__ == "__main__":
 
     batch = []
     done_episodes = 0
-    best_rewards = None
+    best_reward = None
+    total_train_rewards = []
+    train_steps = []
+    total_test_rewards = []
+    test_steps = []
+    t = 0
 
     with drl.tracker.RewardTracker(writer, 1) as tracker:
         with drl.tracker.TBMeanTracker(writer, 10) as tb_tracker:
@@ -97,7 +116,11 @@ if __name__ == "__main__":
                 if rewards_steps:
                     rewards, steps = zip(*rewards_steps)
                     tracker.reward(rewards[0], step_idx)
+                    total_train_rewards.append(rewards[0]/1000)
+                    # print(total_rewards)
+                    train_steps.append(step_idx / 100000)
                     done_episodes += 1
+
 
                     # if best_reward is None or best_reward < reward:
                     #     if best_reward is not None:
@@ -110,19 +133,27 @@ if __name__ == "__main__":
                 if step_idx % TEST_ITERS == 0:
                     ts = time.time()
                     reward, step = common.test_net(act_net, test_env, device=device)
+                    
                     print("Test done in %.2f sec, reward %.3f, steps %d"%(time.time()-ts, reward, step))
                     writer.add_scalar("test_reward", reward, step_idx)
                     writer.add_scalar("test_step", step, step_idx)
 
-                    if best_rewards is None or best_rewards < reward:
-                        if best_rewards is not None:
-                            print("Best reward updated: %.3f -> %.3f"%(best_rewards, reward))
-                        name = "best_%+.3f_%d.dat"%(reward, step_idx)
-                        fname = os.path.join(save_path, name)
-                        torch.save(act_net.state_dict(), fname)
-                        best_rewards = reward
+                    if best_reward is None or best_reward < reward:
+                        if best_reward is not None:
+                            print("Best reward updated: %.3f -> %.3f"%(best_reward, reward))
+                        
+                        best_reward = reward
+                    name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                    fname = os.path.join(save_path, name)
+                    torch.save(act_net.state_dict(), fname)
+                    total_test_rewards.append(reward/1000)
+                    # print(total_rewards)
+                    test_steps.append(t)
+                    t += 1
 
                 if done_episodes > TEST_EPISODES and args.stop:
+                    common.plot_fig(total_train_rewards, train_steps,y_labels='reward x 1000', x_labels='steps x 100000', title="vpg_train_reward", stepx=2, stepy=2)
+                    common.plot_fig(total_test_rewards, test_steps,y_labels='reward x 1000', x_labels='tests', title="vpg_test_reward", stepx=50, stepy=2)
                     break
 
                 if len(batch) < BATCH_SIZE:

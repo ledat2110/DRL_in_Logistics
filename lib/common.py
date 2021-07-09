@@ -5,6 +5,7 @@ import drl
 import numpy as np
 import math
 import collections
+import matplotlib.pyplot as plt
 
 import torch.distributions as D
 
@@ -19,7 +20,7 @@ def test_net (net, env, count=10, device="cpu"):
             obs_v = drl.agent.float32_preprocessor([obs]).to(device)
             mu_v = net(obs_v)[0]
             action = mu_v.squeeze(dim=0).data.cpu().numpy()
-            action = env.clipping_action(action)
+            # action = env.clipping_action(action)
             obs, reward, done, _ = env.step(action)
             rewards += reward
             steps += 1
@@ -62,3 +63,26 @@ class PseudoCountRewardWrapper (gym.Wrapper):
 def counts_hash (obs):
     r = obs.tolist()
     return tuple(map(lambda v: round(v, 3), r))
+
+def plot_fig (y, x, x_labels='steps', y_labels='reward', title='train_reward', legends = ['mean', 'max', 'median'], stepx=5, stepy=5):
+    means = []
+    maxs = []
+    medians = []
+    # x = np.array(x) / 52
+    # x = x.astype(np.int)
+    for i in range(1, len(y) + 1):
+        t = y[:i]
+        means.append(np.mean(y[:i][-1000:]))
+        maxs.append(max(y[:i][-1000:]))
+        medians.append(np.median(y[:i][-1000:]))
+    plt.figure(figsize=(8, 4))
+    plt.plot(x, means)
+    plt.plot(x, maxs)
+    plt.plot(x, medians)
+    plt.xlabel(x_labels)
+    plt.ylabel(y_labels)
+    plt.yticks(np.arange(np.floor(min(y)), np.ceil(max(y)) + 1, stepy))
+    plt.xticks(np.arange(int(min(x)), int(max(x)) +1, stepx))
+    plt.legend(legends)
+    plt.tight_layout()
+    plt.show()

@@ -22,56 +22,46 @@ BATCH_SIZE = 256
 BASELINE_STEPS = 1000
 
 REWARD_STEPS = 1
-TEST_EPISODES = 10000
-TEST_ITERS = 1000
+TEST_EPISODES = 60000
+TEST_ITERS = 10000
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
-    parser.add_argument("-sd", action='store_true', default=False)
-    parser.add_argument("-ns", "--noisy", action='store_true', default=False, help="use the noisy layer")
     parser.add_argument("-s", "--stop", action='store_false', default=True, help="stop when reach maximum episode")
+    parser.add_argument("-m", "--model", default=None)
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     save_path = os.path.join("saves", "matrix_vpg-"+args.name)
     os.makedirs(save_path, exist_ok=True)
 
-    env = envs.supply_chain.SupplyChain(
-        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
-        # storage_capacity=np.array([50, 10]),
-        matrix_state=True
-        )
-    test_env = envs.supply_chain.SupplyChain(
-        # n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
-        # storage_capacity=np.array([50, 10]), 
-        matrix_state=True)
-    if args.sd == True:
-        print("supply distribution 10")
-        env = envs.supply_distribution10.SupplyDistribution(
-                n_stores=3, cap_truck=2, prod_cost=1, max_prod=3,
-                store_cost=np.array([0, 2, 0, 0]),
-                truck_cost=np.array([3, 3, 0]),
-                cap_store=np.array([50, 10, 10, 10]),
-                penalty_cost=1, price=2.5, gamma=1, max_demand=3, episode_length=25)
-        test_env = envs.supply_distribution10.SupplyDistribution(
-                n_stores=3, cap_truck=2, prod_cost=1, max_prod=3,
-                store_cost=np.array([0, 2, 0, 0]),
-                truck_cost=np.array([3, 3, 0]),
-                cap_store=np.array([50, 10, 10, 10]),
-                penalty_cost=1, price=2.5, gamma=1, max_demand=3, episode_length=25)
 
-    #net = model.LogisticsPGN(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
-    act_net = model.MatrixModel(env.observation_space.shape, env.action_space.shape[0]).to(device)
+    env = envs.supply_chain.SupplyChain(
+        m_demand=False, v_demand=False
+        )
+    env2 = envs.supply_chain.SupplyChain(
+        m_demand=True, v_demand=False
+        )
+    env3 = envs.supply_chain.SupplyChain(
+        m_demand=False, v_demand=True
+        )    
+    test_env = envs.supply_chain.SupplyChain(
+        m_demand=True, v_demand=True      
+    )
+    
+    act_net = model.MatrixModel2(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
     print(act_net)
+    if args.model is not None:
+        act_net.load_state_dict(torch.load(args.model))
+        print("load completed")
     n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
     print(n_parameters)
-    n_parameters = sum([np.prod(p.size()) for p in act_net.parameters()])
     agent = model.A2CAgent(act_net, env, device)
 
     writer = SummaryWriter(comment=f'-cont_matrix_vpg-{args.name}')
-    exp_source = drl.experience.ExperienceSourceFirstLast(env, agent, steps_count=REWARD_STEPS, gamma=GAMMA)
+    exp_source = drl.experience.ExperienceSourceFirstLast([env, env2, env3], agent, steps_count=REWARD_STEPS, gamma=GAMMA)
 
     optimizer = optim.Adam(act_net.parameters(), lr=LEARNING_RATE)
 
@@ -80,7 +70,11 @@ if __name__ == "__main__":
     baseline_buf = drl.common.utils.MeanBuffer(BASELINE_STEPS)
     batch = []
     best_reward = None
-    print(args.stop)
+    total_train_rewards = []
+    train_steps = []
+    total_test_rewards = []
+    test_steps = []
+    t = 0
     with drl.tracker.RewardTracker(writer) as tracker:
         with drl.tracker.TBMeanTracker(writer, 10) as tb_tracker:
             for step_idx, exp in enumerate(exp_source):
@@ -93,7 +87,10 @@ if __name__ == "__main__":
                 if rewards_steps:
                     rewards, steps = zip(*rewards_steps)
                     tracker.reward(rewards[0], step_idx)
+                    total_train_rewards.append(rewards[0]/1000)
+                    train_steps.append(step_idx/100000)
                     done_episodes += 1
+
 
                 if step_idx % TEST_ITERS == 0:
                     ts = time.time()
@@ -105,12 +102,19 @@ if __name__ == "__main__":
                     if best_reward is None or best_reward < reward:
                         if best_reward is not None:
                             print("Best reward updated: %.3f -> %.3f"%(best_reward, reward))
-                        name = "best_%+.3f_%d.dat"%(reward, step_idx)
-                        fname = os.path.join(save_path, name)
-                        torch.save(act_net.state_dict(), fname)
+                        
                         best_reward = reward
 
+                    name = "best_%+.3f_%d.dat"%(reward, step_idx)
+                    fname = os.path.join(save_path, name)
+                    torch.save(act_net.state_dict(), fname)
+                    total_test_rewards.append(reward/1000)
+                    test_steps.append(t)
+                    t += 1
+
                 if done_episodes > TEST_EPISODES and args.stop:
+                    common.plot_fig(total_train_rewards, train_steps,y_labels='reward x 1000', x_labels='steps x 100000', title="matrix_vpg_train_reward", stepx=2, stepy=2)
+                    common.plot_fig(total_test_rewards, test_steps,y_labels='reward x 1000', x_labels='tests', title="matrix_vpg_test_reward", stepx=50, stepy=2)
                     break
 
                 if len(batch) < BATCH_SIZE:
@@ -124,7 +128,6 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 mu_v, _ = act_net(states_v)
 
-                # log_prob_v = drl.common.utils.cal_cont_logprob(mu_v, act_net.logstd, actions_v)
                 log_prob_v = common.cal_log_prob(mu_v, act_net.logstd, actions_v)
                 log_prob_v = scales_v.unsqueeze(-1) * log_prob_v
                 loss_policy_v = -log_prob_v.mean()
@@ -135,11 +138,3 @@ if __name__ == "__main__":
                 loss_v = loss_policy_v + entropy_loss_v
                 loss_v.backward()
                 optimizer.step()
-
-                tb_tracker.track("baseline", baseline, step_idx)
-                tb_tracker.track("entropy", entropy_v, step_idx)
-                tb_tracker.track("advantage", scales_v, step_idx)
-                tb_tracker.track("loss_entropy", entropy_loss_v, step_idx)
-                tb_tracker.track("loss_policy", loss_policy_v, step_idx)
-                tb_tracker.track("loss", loss_v, step_idx)
-
