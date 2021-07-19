@@ -46,7 +46,7 @@ class SupplyChain (gym.Env):
                     penalty_cost: np.array=np.array([0, 2, 2, 2], dtype=np.float32), price: int=20,
                     max_demand: int=4, num_period: int=52, periodic_demand: bool=True,
                     matrix_state: bool=False, v_demand: bool=False, m_demand: bool=False,
-                    disp: bool=False):
+                    disp: bool=False, break_sp: bool=False):
         self.num_period = num_period
         self.unit_cost = production_cost
         self.production_capacity = max_production
@@ -68,6 +68,9 @@ class SupplyChain (gym.Env):
         self.total_back_cost = 0
         self.total_revenue = 0
         
+        self.break_sp = break_sp
+        self.break_st = 15
+        self.break_end = 35
 
         self.action_dim = self.storage_capacity.shape[0]
         self.action_space = gym.spaces.Box(
@@ -153,6 +156,11 @@ class SupplyChain (gym.Env):
 
     def clipping_action (self, action: np.ndarray) -> np.ndarray:
         upper_bound = self.storage_capacity - self.inventory
+        if self.period <= self.break_end and self.period >= self.break_st and self.break_sp:
+
+            idx = np.random.randint(1, action.size)
+            # action[idx] = 0
+            upper_bound[idx] = 0
         action = np.clip(action, np.zeros(self.action_dim), upper_bound)
         action[0] = min(self.production_capacity, action[0])
         if np.sum(action[1:]) > self.inventory[0] and np.sum(action[1:]) != 0:
@@ -211,12 +219,15 @@ class SupplyChain (gym.Env):
             # eps = 0
             # eps = np.random.choice([-1, 0, 1], p=[1/3, 1/3, 1/3])
             # print(eps)
-            rad = np.pi * (self.period + 2 * i) / (.25 * self.num_period) 
-            v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
-                * np.sin(rad) / 4
-            m = self.demand_max + self.m_demand * (self.period / self.num_period)
-            demand[i] = np.floor(m + v + eps)
-            # if self.periodic_demand == True:
+            if self.periodic_demand == True:
+                rad = np.pi * (self.period + 2 * i) / (.25 * self.num_period) 
+                v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
+                    * np.sin(rad) / 4
+                m = self.demand_max + self.m_demand * (self.period / self.num_period)
+                demand[i] = np.floor(m + v + eps)
+            else:
+                demand[i] = np.random.randint(low=0, high=self.demand_max * 2+1)
+                # if self.periodic_demand == True:
             #     eps = np.random.choice([0, 1], p=(0.5, 0.5))
                 # rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
             #     val = .5 * self.demand_max * np.sin(rad) * (self.v_demand ** (self.period / self.num_period)) + .5 * self.demand_max + self.m_demand * (self.period / self.num_period) + eps
@@ -274,7 +285,7 @@ class SupplyChainWareHouse (gym.Env):
                     penalty_cost: np.array=np.array([0, 2, 2, 2], dtype=np.float32), price: int=20,
                     max_demand: int=4, num_period: int=52, periodic_demand: bool=True,
                     matrix_state: bool=False, v_demand: bool=False, m_demand: bool=False, retailer_agent=None,
-                    disp: bool=False):
+                    disp: bool=False, break_sp: bool=False):
         self.num_period = num_period
         self.unit_cost = production_cost
         self.production_capacity = max_production
@@ -297,6 +308,9 @@ class SupplyChainWareHouse (gym.Env):
         self.total_revenue = 0
         self.retailer_agent = retailer_agent
         
+        self.break_sp = break_sp
+        self.break_st = 15
+        self.break_end = 35
 
         self.action_dim = 1
         self.action_space = gym.spaces.Box(
@@ -387,11 +401,20 @@ class SupplyChainWareHouse (gym.Env):
 
     def clipping_action (self, action: np.ndarray) -> np.ndarray:
         upper_bound = self.storage_capacity - self.inventory
+        if self.period <= self.break_end and self.period >= self.break_st and self.break_sp:
+
+            idx = np.random.randint(1, action.size)
+            # action[idx] = 0
+            upper_bound[idx] = 0
         action = np.clip(action, np.zeros(self.action_dim), upper_bound)
         action[0] = min(self.production_capacity, action[0])
         if np.sum(action[1:]) > self.inventory[0] and np.sum(action[1:]) != 0:
             action[1:] = action[1:] * self.inventory[0] / np.sum(action[1:])
         action = np.around(action, 4).astype(np.float32)
+
+        # if self.break_sp:
+        #     idx = np.random.randint(1, action.size)
+        #     action[idx] /= 2
 
         return action
 
@@ -444,12 +467,15 @@ class SupplyChainWareHouse (gym.Env):
             # eps = 0
             # eps = np.random.choice([-1, 0, 1], p=[1/3, 1/3, 1/3])
             # print(eps)
-            rad = np.pi * (self.period + 2 * i) / (.25 * self.num_period) 
-            v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
-                * np.sin(rad) / 4
-            m = self.demand_max + self.m_demand * (self.period / self.num_period)
-            demand[i] = np.floor(m + v + eps)
-            # if self.periodic_demand == True:
+            if self.periodic_demand == True:
+                rad = np.pi * (self.period + 2 * i) / (.25 * self.num_period) 
+                v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
+                    * np.sin(rad) / 4
+                m = self.demand_max + self.m_demand * (self.period / self.num_period)
+                demand[i] = np.floor(m + v + eps)
+            else:
+                demand[i] = np.random.randint(low=0, high=self.demand_max * 2+1)
+                # if self.periodic_demand == True:
             #     eps = np.random.choice([0, 1], p=(0.5, 0.5))
                 # rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
             #     val = .5 * self.demand_max * np.sin(rad) * (self.v_demand ** (self.period / self.num_period)) + .5 * self.demand_max + self.m_demand * (self.period / self.num_period) + eps

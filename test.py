@@ -42,7 +42,7 @@ def plot_fig (y, x, x_labels='steps', y_labels='reward', title='train_reward', l
     if legends is not None:
         plt.legend(legends, bbox_to_anchor=(0, 1), loc='lower left', ncol=len(legends))
     plt.tight_layout()
-
+    plt.savefig(f"/home/ledat/Desktop/result_png/{title}.png")
     plt.show()
 
 
@@ -56,6 +56,8 @@ if __name__ == "__main__":
     parser.add_argument("-tr", "--trend", default=False, action='store_true', help='use trend demand')
     parser.add_argument("-v", "--var", default=False, action='store_true', help='use variance demand')
     parser.add_argument("-p", "--plot", default=False, action='store_true', help='show the plot of policy')
+    parser.add_argument("-br", "--break_sp", default=False, action='store_true', help="")
+    parser.add_argument("-rd", "--random_demand", default=True, action='store_false', help="")
     args = parser.parse_args()
     device = 'cuda' if torch.cuda.is_available() else "cpu"
     print(args.trend, args.var)
@@ -64,12 +66,18 @@ if __name__ == "__main__":
         env = envs.supply_chain.SupplyChain(
         #     n_stores=1, store_cost=np.array([0, 2]), truck_cost=np.array([3]),
         # storage_capacity=np.array([50, 10]),
-        periodic_demand=False, 
-        m_demand=args.trend, v_demand=args.var)
+        # periodic_demand=False, 
+            m_demand=args.trend, v_demand=args.var,
+            periodic_demand=args.random_demand,
+            break_sp=args.break_sp
+        )
         agent = create_agent(env)
     if args.type == 'vpg':
         env = envs.supply_chain.SupplyChain(
-        m_demand=args.trend, v_demand=args.var)
+            m_demand=args.trend, v_demand=args.var,
+            periodic_demand=args.random_demand,
+            break_sp=args.break_sp
+        )
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load(args.model))
     if args.type == '2_agent':
@@ -80,13 +88,18 @@ if __name__ == "__main__":
         retailer_agent = model.NormalAgent(retailer_net, device=device)
         env = envs.supply_chain.SupplyChainWareHouse(
             m_demand=args.trend, v_demand=args.var,
-            retailer_agent=retailer_agent
+            retailer_agent=retailer_agent,
+            periodic_demand=args.random_demand,
+            break_sp=args.break_sp
         )
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load(args.model))
     if args.type == 'matrix_vpg':
         env = envs.supply_chain.SupplyChain(
-        m_demand=args.trend, v_demand=args.var)
+            m_demand=args.trend, v_demand=args.var,
+            periodic_demand=args.random_demand,
+            break_sp=args.break_sp
+        )
         net = model.MatrixModel2(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load(args.model))
     if args.type != 'threshold':
@@ -132,15 +145,17 @@ if __name__ == "__main__":
                     store_cost.append(costs[3])
                     back_cost.append(costs[4])
                     break
+            if eps % 100 == 0:
+                print(np.mean(total_rewards[-100:]))
     
 
     x = np.arange(0, env.num_period, 1)
     if args.plot:
         # print(invs)
         # print((rewards, revenue, cost))
-        plot_fig(demands, x, y_labels='Đơn hàng yêu cầu', title=f'{args.type}_demand_run_{args.trend}_{args.var}', legends=['Cửa hàng 1', 'Cửa hàng 2', 'Cửa hàng 3'], stepx=5, stepy=1)
-        plot_fig(actions, x, y_labels='Sản xuất và vận chuyển', title=f'{args.type}_act_run_{args.trend}_{args.var}', legends=['Sản xuất','Vận chuyển 1', 'Vận chuyển 2', 'Vận chuyển 3'], stepx=5, stepy=5)
-        plot_fig(invs, x, y_labels='Kho hàng', title=f'{args.type}_inv_run_{args.trend}_{args.var}', legends=['Nhà phân phối','Cửa hàng 1', 'Cửa hàng 2', 'Cửa hàng 3'], stepx=5, stepy=10)
+        plot_fig(demands, x, y_labels='Đơn hàng yêu cầu', title=f'{args.type}_demand_run_{args.trend}_{args.var}_{args.break_sp}_{args.random_demand}', legends=['Cửa hàng 1', 'Cửa hàng 2', 'Cửa hàng 3'], stepx=5, stepy=1)
+        plot_fig(actions, x, y_labels='Sản xuất và vận chuyển', title=f'{args.type}_act_run_{args.trend}_{args.var}_{args.break_sp}_{args.random_demand}', legends=['Sản xuất','Vận chuyển 1', 'Vận chuyển 2', 'Vận chuyển 3'], stepx=5, stepy=5)
+        plot_fig(invs, x, y_labels='Kho hàng', title=f'{args.type}_inv_run_{args.trend}_{args.var}_{args.break_sp}_{args.random_demand}', legends=['Nhà phân phối','Cửa hàng 1', 'Cửa hàng 2', 'Cửa hàng 3'], stepx=5, stepy=10)
         # plot_fig(list(zip(rewards, revenue, cost)), x, y_labels='Lợi nhuận', title=f'{args.type}_reward_run_{args.trend}_{args.var}', legends=['Lợi nhuận', 'Lợi nhuận trung bình', 'Tổng lợi nhuận'], stepx=5, stepy=100)
     print("avg rewrards", np.around(np.mean(total_rewards)/100, 3))
     print("avg revenue", np.around(np.mean(revenue)/100, 3))

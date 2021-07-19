@@ -63,7 +63,8 @@ if __name__ == "__main__":
         retailer_agent = model.NormalAgent(retailer_net, device=device)
         env = envs.supply_chain.SupplyChainWareHouse(
             m_demand=trend_demand, v_demand=var_demand,
-            retailer_agent=retailer_agent
+            retailer_agent=retailer_agent,
+            break_sp=True
         )
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load('model/2_agent/warhouse_model.dat'))

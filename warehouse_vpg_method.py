@@ -22,8 +22,8 @@ BATCH_SIZE = 256
 BASELINE_STEPS = 1000
 
 REWARD_STEPS = 1
-TEST_EPISODES = 60000
-TEST_ITERS = 10000
+TEST_EPISODES = 6000
+TEST_ITERS = 1000
 
 
 if __name__ == "__main__":
@@ -41,25 +41,30 @@ if __name__ == "__main__":
     retailer_env = envs.supply_chain.SupplyChainRetailer()
     retailer_net = model.A2CModel(retailer_env.observation_space.shape[0], retailer_env.action_space.shape[0]).to(device)
     if args.retailer_model is not None:
-        retailer_net.load_state_dict(torch.load(args.model))
+        retailer_net.load_state_dict(torch.load(args.retailer_model))
         print("load completed")
     retailer_agent = model.NormalAgent(retailer_net, device=device)
 
     env = envs.supply_chain.SupplyChainWareHouse(
         m_demand=False, v_demand=False
-        , retailer_agent=retailer_agent
+        , retailer_agent=retailer_agent,
+        break_sp=True
         )
     env2 = envs.supply_chain.SupplyChainWareHouse(
         m_demand=True, v_demand=False
-        , retailer_agent=retailer_agent
+        , retailer_agent=retailer_agent,
+        break_sp=True
         )
     env3 = envs.supply_chain.SupplyChainWareHouse(
         m_demand=False, v_demand=True
-        , retailer_agent=retailer_agent
+        , retailer_agent=retailer_agent,
+        break_sp=True
         )    
     test_env = envs.supply_chain.SupplyChainWareHouse(
         m_demand=True, v_demand=True
-        , retailer_agent=retailer_agent
+        , retailer_agent=retailer_agent,
+        break_sp=True
+
     )
 
     act_net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
