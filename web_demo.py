@@ -29,41 +29,20 @@ NUM_STORE = 3
 
 
 if __name__ == "__main__":
+    env = envs.supply_chain.SupplyChain()
     st.title("Tối Ưu Hóa Chuỗi Cung Ứng Bằng Phương Pháp Học Tăng Cường Sâu")
-    agent_type = st.selectbox("Chủ thể", ('(zeta, Q)','Cơ sở', 'Mô hình đề xuất', 'Đa chủ thể'))
-    st.write("Tính chất đơn hàng")
-    trend_demand = st.checkbox("Đơn hàng có xu hướng")
-    var_demand = st.checkbox("Đơn hàng dao động mạnh")
-    random_demand = st.checkbox("Đơn hàng rời rạc")
-    break_demand = st.checkbox("Đứt gãy chuỗi cung ứng")
-
+    
+    agent_type = st.selectbox("Chủ thể", ('(varsigma, Q)','Cơ sở', 'Mô hình đề xuất', 'Đa chủ thể'))
     device = 'cuda' if torch.cuda.is_available() else "cpu"
-
-    if agent_type == "(zeta, Q)":
-        env = envs.supply_chain.SupplyChain(
-        m_demand=trend_demand, 
-        v_demand=var_demand,
-        periodic_demand= (random_demand == False),
-        break_sp=break_demand
-        )
+    if agent_type == "(varsigma, Q)":
         agent = create_agent(env)
 
 
     if agent_type == 'Cơ sở':
-        env = envs.supply_chain.SupplyChain(
-        m_demand=trend_demand, v_demand=var_demand,
-        periodic_demand= (random_demand == False),
-        break_sp=break_demand
-        )
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load('model/vpg/vpg_model.dat'))
 
     if agent_type == 'Mô hình đề xuất':
-        env = envs.supply_chain.SupplyChain(
-        m_demand=trend_demand, v_demand=var_demand,
-        periodic_demand= (random_demand == False),
-        break_sp=break_demand
-        )
         net = model.MatrixModel2(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load('model/matrix_vpg/matrix_vpg_model.dat'))
     
@@ -72,6 +51,93 @@ if __name__ == "__main__":
         retailer_net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         retailer_net.load_state_dict(torch.load('model/2_agent/retailer_model.dat'))
         retailer_agent = model.NormalAgent(retailer_net, device=device)
+        
+        env = envs.supply_chain.SupplyChainWareHouse(retailer_agent=retailer_agent)
+        net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+        net.load_state_dict(torch.load('model/2_agent/warhouse_model.dat'))
+    
+    st.header("Đề xuất hành động")
+    st.write("Tình trạng kho hàng")
+    cols = st.beta_columns(4)
+    labels = ['Nhà phân phối', 'Đơn vị bán lẻ 1', 'Đơn vị bán lẻ 2', 'Đơn vị bán lẻ 3']
+    invs = []
+    for i, col in enumerate(cols):
+        with col:
+            inv = st.number_input(labels[i], min_value=0.0, max_value=50.0, step=0.01)
+            invs.append(inv)
+
+    old_demands = [[], []]
+    labels = ['Đơn vị bán lẻ 1', 'Đơn vị bán lẻ 2', 'Đơn vị bán lẻ 3']
+
+    for t, old_demand in enumerate(old_demands):
+        st.write(f"Lịch sử đơn hàng {t+1}")
+        cols = st.beta_columns(3)
+       
+        for i, col in enumerate(cols):
+            with col:
+                old_dmd = st.number_input(labels[i] + f'_{t+1}', min_value=0.0, max_value=10.0, step=0.01)
+                old_demand.append(old_dmd)
+
+    if agent_type == 'Đa chủ thể':
+        old_transports = [[], []]
+        labels = ['Vận chuyển 1', 'Vận chuyển 2', 'Vận chuyển 3']
+
+        for t, old_transport in enumerate(old_transports):
+            st.write(f"Lịch sử vận chuyển {t+1}")
+            cols = st.beta_columns(3)
+        
+            for i, col in enumerate(cols):
+                with col:
+                    old_trp = st.number_input(labels[i] + f'_{t+1}', min_value=0.0, max_value=10.0, step=0.01)
+                    old_transport.append(old_trp)
+
+    get_act_btn = st.button("Đề xuât hành động")
+    acts = []
+    labels = ['Sản xuất', 'Vận chuyển 1', 'Vận chuyển 2', 'Vận chuyển 3']
+    cols = st.beta_columns(4)
+    for i, col in enumerate(cols):
+        with col:
+            st.write(labels[i])
+            act = st.empty()
+            act.write(0)
+            acts.append(act)
+    
+    if get_act_btn:
+        env.inventory = invs.copy()
+        if agent_type != 'Đa chủ thể':
+            obs = np.concatenate((invs, old_demands[0], old_demands[1])).astype(np.float32)
+        else:
+            env.retailer_state = np.concatenate((invs[1:], old_demands[0], old_demands[1])).astype(np.float32)
+            obs = np.concatenate(([invs[0]], old_transports[0], old_transports[1])).astype(np.float32)
+            
+        if agent_type == '(varsigma, Q)':
+            action = agent.get_action(obs)
+        else:
+            obs_v = torch.FloatTensor([obs]).to(device)
+            mu_v, _ = net(obs_v)
+            action = mu_v.squeeze(dim=0).cpu().data.numpy()
+
+        _, _, _, (act_t, _) = env.step(action)
+        for i, act in enumerate(acts):
+            acts[i].write(act_t[i])
+        
+
+    st.header("Chạy mô phỏng")
+    st.write("Tính chất đơn hàng")
+    trend_demand = st.checkbox("Đơn hàng có xu hướng")
+    var_demand = st.checkbox("Đơn hàng dao động mạnh")
+    random_demand = st.checkbox("Đơn hàng rời rạc")
+    break_demand = st.checkbox("Đứt gãy chuỗi cung ứng")
+
+    # device = 'cuda' if torch.cuda.is_available() else "cpu"
+
+    env = envs.supply_chain.SupplyChain(
+        m_demand=trend_demand, 
+        v_demand=var_demand,
+        periodic_demand= (random_demand == False),
+        break_sp=break_demand
+        )
+    if agent_type == 'Đa chủ thể':
         env = envs.supply_chain.SupplyChainWareHouse(
             m_demand=trend_demand, v_demand=var_demand,
             retailer_agent=retailer_agent,
@@ -79,8 +145,49 @@ if __name__ == "__main__":
             break_sp=break_demand
         
         )
-        net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
-        net.load_state_dict(torch.load('model/2_agent/warhouse_model.dat'))
+       
+    # if agent_type == "(varsigma, Q)":
+    #     env = envs.supply_chain.SupplyChain(
+    #     m_demand=trend_demand, 
+    #     v_demand=var_demand,
+    #     periodic_demand= (random_demand == False),
+    #     break_sp=break_demand
+    #     )
+    #     agent = create_agent(env)
+
+
+    # if agent_type == 'Cơ sở':
+    #     env = envs.supply_chain.SupplyChain(
+    #     m_demand=trend_demand, v_demand=var_demand,
+    #     periodic_demand= (random_demand == False),
+    #     break_sp=break_demand
+    #     )
+    #     net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    #     net.load_state_dict(torch.load('model/vpg/vpg_model.dat'))
+
+    # if agent_type == 'Mô hình đề xuất':
+    #     env = envs.supply_chain.SupplyChain(
+    #     m_demand=trend_demand, v_demand=var_demand,
+    #     periodic_demand= (random_demand == False),
+    #     break_sp=break_demand
+    #     )
+    #     net = model.MatrixModel2(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    #     net.load_state_dict(torch.load('model/matrix_vpg/matrix_vpg_model.dat'))
+    
+    # if agent_type == 'Đa chủ thể':
+    #     env = envs.supply_chain.SupplyChainRetailer()
+    #     retailer_net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    #     retailer_net.load_state_dict(torch.load('model/2_agent/retailer_model.dat'))
+    #     retailer_agent = model.NormalAgent(retailer_net, device=device)
+    #     env = envs.supply_chain.SupplyChainWareHouse(
+    #         m_demand=trend_demand, v_demand=var_demand,
+    #         retailer_agent=retailer_agent,
+    #         periodic_demand= (random_demand == False),
+    #         break_sp=break_demand
+        
+    #     )
+    #     net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
+    #     net.load_state_dict(torch.load('model/2_agent/warhouse_model.dat'))
 
     
 
@@ -168,7 +275,7 @@ if __name__ == "__main__":
         period_st.write(t)
         update_sc(obs[:NUM_STORE+1])
         
-        if agent_type == '(zeta, Q)':
+        if agent_type == '(varsigma, Q)':
             action = agent.get_action(obs)  
         else:
             obs_v = torch.FloatTensor([obs]).to(device)
