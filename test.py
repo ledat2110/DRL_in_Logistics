@@ -42,7 +42,7 @@ def plot_fig (y, x, x_labels='steps', y_labels='reward', title='train_reward', l
     if legends is not None:
         plt.legend(legends, bbox_to_anchor=(0, 1), loc='lower left', ncol=len(legends))
     plt.tight_layout()
-    plt.savefig(f"/home/ledat/Desktop/result_png/{title}.png")
+    # plt.savefig(f"/home/ledat/Desktop/result_png/{title}.png")
     plt.show()
 
 
@@ -123,6 +123,7 @@ if __name__ == "__main__":
             total_reward = 0
             obs = env.reset()
             while True:
+                print(obs)
                 if args.type == 'threshold':
                     action = agent.get_action(obs)
                 else:

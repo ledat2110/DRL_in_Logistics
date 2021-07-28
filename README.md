@@ -76,7 +76,7 @@
 * `-s, --stop`: nostop traininng.
 
 ## TEST
-`python test.py -t TYPE_OF_AGENT -m DIR_PRETRAINED_MODEL [-n NUMBER_OF_EPISODE] [-p] [-tr] [-v] [-rm DIR_PRETRAINED_RETAILER_MODEL]`
+`python test.py -t TYPE_OF_AGENT -m DIR_PRETRAINED_MODEL [-n NUMBER_OF_EPISODE] [-p] [-tr] [-v] [-rd] [-br] [-rm DIR_PRETRAINED_RETAILER_MODEL]`
 ### Arguments
 * `-t, --type`: type of the agent with `[vpg, matrix_vpg, 2_agent]`.
 * `-m, --model`: path to the pretrained model.
@@ -84,6 +84,8 @@
 * `-p, --plot`: show the chart of values in logistics.
 * `-tr, --trend`: activate trend demand.
 * `-v, --var`: activate variance demand.
+* `-rd, --random_demand`: activate random demand.
+* `-br, --break_sp`: break event in running the logistics process.
 * `-rm, --retailer_model`: the path to the pretrained retailer model if use `2_agent` type.
 
 ## DEMO

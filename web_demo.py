@@ -34,25 +34,36 @@ if __name__ == "__main__":
     st.write("Tính chất đơn hàng")
     trend_demand = st.checkbox("Đơn hàng có xu hướng")
     var_demand = st.checkbox("Đơn hàng dao động mạnh")
+    random_demand = st.checkbox("Đơn hàng rời rạc")
+    break_demand = st.checkbox("Đứt gãy chuỗi cung ứng")
 
     device = 'cuda' if torch.cuda.is_available() else "cpu"
 
     if agent_type == "(zeta, Q)":
         env = envs.supply_chain.SupplyChain(
         m_demand=trend_demand, 
-        v_demand=var_demand)
+        v_demand=var_demand,
+        periodic_demand= (random_demand == False),
+        break_sp=break_demand
+        )
         agent = create_agent(env)
 
 
     if agent_type == 'Cơ sở':
         env = envs.supply_chain.SupplyChain(
-        m_demand=trend_demand, v_demand=var_demand)
+        m_demand=trend_demand, v_demand=var_demand,
+        periodic_demand= (random_demand == False),
+        break_sp=break_demand
+        )
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load('model/vpg/vpg_model.dat'))
 
     if agent_type == 'Mô hình đề xuất':
         env = envs.supply_chain.SupplyChain(
-        m_demand=trend_demand, v_demand=var_demand)
+        m_demand=trend_demand, v_demand=var_demand,
+        periodic_demand= (random_demand == False),
+        break_sp=break_demand
+        )
         net = model.MatrixModel2(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load('model/matrix_vpg/matrix_vpg_model.dat'))
     
@@ -64,7 +75,9 @@ if __name__ == "__main__":
         env = envs.supply_chain.SupplyChainWareHouse(
             m_demand=trend_demand, v_demand=var_demand,
             retailer_agent=retailer_agent,
-            break_sp=True
+            periodic_demand= (random_demand == False),
+            break_sp=break_demand
+        
         )
         net = model.A2CModel(env.observation_space.shape[0], env.action_space.shape[0]).to(device)
         net.load_state_dict(torch.load('model/2_agent/warhouse_model.dat'))

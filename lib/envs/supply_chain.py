@@ -472,9 +472,9 @@ class SupplyChainWareHouse (gym.Env):
                 v = self.demand_max * (self.v_demand ** (self.period / self.num_period)) \
                     * np.sin(rad) / 4
                 m = self.demand_max + self.m_demand * (self.period / self.num_period)
-                demand[i] = np.floor(m + v + eps)
+                demand[i] = (m + v + eps)
             else:
-                demand[i] = np.random.randint(low=0, high=self.demand_max * 2+1)
+                demand[i] = np.random.uniform(0, self.demand_max * 2+1)
                 # if self.periodic_demand == True:
             #     eps = np.random.choice([0, 1], p=(0.5, 0.5))
                 # rad = np.pi * (self.period + 2 * i) / (.5 * self.num_period) - np.pi
